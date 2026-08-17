@@ -1,0 +1,7 @@
+videos/
+lingbot-map-main/lingbot-map-main/example/
+lingbot-map-main/lingbot-map-main/webcam_record_frames/
+lingbot-map-main/lingbot-map-main/checkpoints/
+__pycache__/
+*.pyc
+.venv/
