@@ -5,3 +5,14 @@ lingbot-map-main/lingbot-map-main/checkpoints/
 __pycache__/
 *.pyc
 .venv/
+
+# Local model assets and camera captures.
+lingbot-map-main/checkpoints/
+lingbot-map-main/webcam_record.mp4
+lingbot-map-main/webcam_record_frames/
+
+# Generated maps and local navigation state.
+map_localization_test/outputs/
+map_localization_test/current_pose.json
+map_localization_test/planned_path.json
+map_localization_test/navigation_state.json

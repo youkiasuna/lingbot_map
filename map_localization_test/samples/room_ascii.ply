@@ -1,0 +1,28 @@
+ply
+format ascii 1.0
+comment Small room-shaped sample for build_topdown_map.py
+element vertex 20
+property float x
+property float y
+property float z
+end_header
+0.0 0.0 0.0
+0.0 0.0 1.0
+0.0 0.0 2.0
+4.0 0.0 0.0
+4.0 0.0 1.0
+4.0 0.0 2.0
+0.0 3.0 0.0
+0.0 3.0 1.0
+0.0 3.0 2.0
+4.0 3.0 0.0
+4.0 3.0 1.0
+4.0 3.0 2.0
+2.0 0.0 0.0
+2.0 0.0 1.0
+2.0 3.0 0.0
+2.0 3.0 1.0
+2.0 1.5 0.0
+2.0 1.5 1.0
+2.0 1.5 2.0
+2.0 1.5 2.5

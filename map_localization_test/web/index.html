@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Robot Visual Navigation</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="toolbar" aria-label="navigation controls">
+        <div class="title">
+          <h1>Robot Visual Navigation</h1>
+          <span id="stateText">Loading</span>
+        </div>
+        <div class="actions">
+          <button id="refreshBtn" type="button" title="Refresh map and pose">Refresh</button>
+          <button id="startBtn" type="button" title="Start navigation">Start</button>
+          <button id="stopBtn" type="button" title="Stop navigation">Stop</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <canvas id="mapCanvas" width="960" height="640" aria-label="occupancy map"></canvas>
+        <aside class="statusPanel">
+          <div>
+            <span class="label">Pose</span>
+            <strong id="poseText">Waiting</strong>
+          </div>
+          <div>
+            <span class="label">Goal</span>
+            <strong id="goalText">Click map</strong>
+          </div>
+          <div>
+            <span class="label">Path</span>
+            <strong id="pathText">No path</strong>
+          </div>
+          <div class="legend">
+            <span><i class="free"></i> Free</span>
+            <span><i class="unknown"></i> Unknown</span>
+            <span><i class="occupied"></i> Obstacle</span>
+            <span><i class="path"></i> Path</span>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
