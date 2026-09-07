@@ -33,6 +33,24 @@ Then visit `http://127.0.0.1:8000`.
 python car/phone_video_receiver.py --url http://192.168.4.2:8080/video
 ```
 
+Or show the phone camera directly above the browser driving controls:
+
+```bash
+python car/web_controller.py \
+  --ip 192.168.4.1 \
+  --port 8000 \
+  --video-url http://192.168.4.2:8080/video
+```
+
+If the phone stream is forwarded to the lab host through SSH, point `--video-url` at the forwarded address instead, for example:
+
+```bash
+python car/web_controller.py \
+  --ip 192.168.4.1 \
+  --port 8000 \
+  --video-url http://127.0.0.1:18080/video
+```
+
 ## Commands
 
 The ESP32 accepts these single-letter commands:

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "calibration_status": "UNSET",
+  "vehicle_type": "differential_drive",
+  "base_frame_id": "base_link",
+  "wheel_radius_m": null,
+  "wheel_base_m": null,
+  "limits": {
+    "max_linear_speed_mps": 0.15,
+    "max_angular_speed_radps": 0.7,
+    "max_linear_accel_mps2": 0.2,
+    "goal_tolerance_m": 0.1,
+    "command_timeout_s": 0.5
+  },
+  "safety": {
+    "motor_output_enabled": false,
+    "minimum_pose_confidence": 0.8,
+    "maximum_pose_age_s": 0.5,
+    "stop_on_localization_loss": true
+  }
+}

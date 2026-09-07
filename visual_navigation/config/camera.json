@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "calibration_status": "UNSET",
+  "frame_id": "camera_optical_frame",
+  "base_frame_id": "base_link",
+  "image": {
+    "width_px": null,
+    "height_px": null
+  },
+  "intrinsics_px": {
+    "fx": null,
+    "fy": null,
+    "cx": null,
+    "cy": null
+  },
+  "distortion": {
+    "model": "plumb_bob",
+    "coefficients": []
+  },
+  "camera_to_base": {
+    "translation_m": {
+      "x": null,
+      "y": null,
+      "z": null
+    },
+    "rotation_rpy_rad": {
+      "roll": null,
+      "pitch": null,
+      "yaw": null
+    }
+  }
+}

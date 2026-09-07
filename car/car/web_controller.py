@@ -1,7 +1,9 @@
 import argparse
 import socket
+from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
 
 COMMAND_MAP = {
@@ -51,7 +53,7 @@ HTML_PAGE = """<!doctype html>
     }
 
     .card {
-      width: min(92vw, 560px);
+      width: min(94vw, 760px);
       padding: 28px;
       border-radius: 28px;
       background: var(--panel);
@@ -70,6 +72,58 @@ HTML_PAGE = """<!doctype html>
       margin: 0 0 22px;
       color: var(--muted);
       line-height: 1.6;
+    }
+
+    .camera-panel {
+      margin: 0 0 18px;
+      overflow: hidden;
+      border-radius: 20px;
+      background: #020617;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .camera-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .camera-status {
+      color: #bae6fd;
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+
+    .camera-view {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      min-height: 180px;
+      background: #020617;
+    }
+
+    .camera-view img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #020617;
+    }
+
+    .camera-placeholder {
+      position: absolute;
+      inset: 0;
+      display: __VIDEO_PLACEHOLDER_DISPLAY__;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
     }
 
     .status {
@@ -252,6 +306,17 @@ HTML_PAGE = """<!doctype html>
   <main class="card">
     <h1>ESP32 Car Controller</h1>
     <p class="subtitle">長按方向鍵開始移動，放開後自動停止。配速板可以即時調整馬達速度，短點方向鍵不會誤觸移動。</p>
+
+    <section class="camera-panel" aria-label="phone camera">
+      <div class="camera-head">
+        <span>Phone camera</span>
+        <span class="camera-status">__VIDEO_STATUS__</span>
+      </div>
+      <div class="camera-view">
+        <img id="cameraStream" src="__VIDEO_SRC__" alt="phone camera stream" style="display: __VIDEO_IMAGE_DISPLAY__;">
+        <div class="camera-placeholder">啟動時加上 <code>--video-url</code> 後會顯示 IP Webcam 畫面。</div>
+      </div>
+    </section>
 
     <section class="status">
       <div class="status-item">
@@ -573,6 +638,7 @@ def send_command(ip: str, port: int, command: str) -> None:
 class ControllerHandler(BaseHTTPRequestHandler):
     esp32_ip = "192.168.50.214"
     esp32_port = 8888
+    video_url = ""
     speed_min = 0
     speed_max = 255
     speed_step = 5
@@ -594,6 +660,10 @@ class ControllerHandler(BaseHTTPRequestHandler):
             "__PRESET_LOW__": str(min(cls.speed_max, preset_low)),
             "__PRESET_MID__": str(cls.default_speed),
             "__PRESET_HIGH__": str(min(cls.speed_max, preset_high)),
+            "__VIDEO_SRC__": "/video-proxy" if cls.video_url else "",
+            "__VIDEO_STATUS__": escape(cls.video_url) if cls.video_url else "No video source",
+            "__VIDEO_IMAGE_DISPLAY__": "block" if cls.video_url else "none",
+            "__VIDEO_PLACEHOLDER_DISPLAY__": "none" if cls.video_url else "flex",
         }
 
         page = HTML_PAGE
@@ -614,10 +684,50 @@ class ControllerHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _proxy_video(self) -> None:
+        if not self.video_url:
+            self._send_text(404, "No video URL configured. Start with --video-url.")
+            return
+
+        request = Request(
+            self.video_url,
+            headers={
+                "User-Agent": "lingbot-car-controller/1.0",
+                "Accept": "multipart/x-mixed-replace,*/*",
+            },
+        )
+
+        try:
+            with urlopen(request, timeout=8) as upstream:
+                content_type = upstream.headers.get(
+                    "Content-Type",
+                    "multipart/x-mixed-replace; boundary=--frame",
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.end_headers()
+
+                while True:
+                    chunk = upstream.read(64 * 1024)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except (OSError, TimeoutError) as error:
+            try:
+                self._send_text(502, f"Failed to read video stream: {error}")
+            except OSError:
+                return
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/":
             self._send_text(200, self.build_page(), "text/html; charset=utf-8")
+            return
+
+        if parsed.path == "/video-proxy":
+            self._proxy_video()
             return
 
         if parsed.path == "/api/move":
@@ -676,6 +786,11 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8000, help="Web server port")
     parser.add_argument("--ip", default="192.168.50.214", help="ESP32 IP address")
     parser.add_argument("--esp32-port", type=int, default=8888, help="ESP32 TCP port")
+    parser.add_argument(
+        "--video-url",
+        default="",
+        help="Phone/IP Webcam MJPEG URL, for example http://127.0.0.1:18080/video",
+    )
     parser.add_argument("--default-speed", type=int, default=160, help="Initial speed shown on the web speed panel")
     parser.add_argument("--min-speed", type=int, default=0, help="Minimum speed value accepted by the web API")
     parser.add_argument("--max-speed", type=int, default=255, help="Maximum speed value accepted by the web API")
@@ -698,6 +813,7 @@ def main() -> None:
 
     ControllerHandler.esp32_ip = args.ip
     ControllerHandler.esp32_port = args.esp32_port
+    ControllerHandler.video_url = args.video_url
     ControllerHandler.speed_min = args.min_speed
     ControllerHandler.speed_max = args.max_speed
     ControllerHandler.speed_step = args.speed_step
@@ -707,6 +823,10 @@ def main() -> None:
     server = ThreadingHTTPServer((args.host, args.port), ControllerHandler)
     print(f"Open http://127.0.0.1:{args.port} in your browser")
     print(f"Forwarding commands to {args.ip}:{args.esp32_port}")
+    if args.video_url:
+        print(f"Proxying phone video from {args.video_url} at /video-proxy")
+    else:
+        print("No phone video configured. Add --video-url to show an IP Webcam stream.")
     print(
         "Speed panel range: "
         f"{args.min_speed}-{args.max_speed}, step {args.speed_step}, command template {args.speed_command_template}"

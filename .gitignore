@@ -16,3 +16,4 @@ map_localization_test/outputs/
 map_localization_test/current_pose.json
 map_localization_test/planned_path.json
 map_localization_test/navigation_state.json
+visual_navigation/controller_command.json
