@@ -91,8 +91,8 @@ python3 Integrated_version/planner/grid_navigation.py \\
 
 ```bash
 python3 Integrated_version/map/clean_point_cloud_20260818.py \\
-   --ply map_localization_test/outputs/20260818_dense.ply \\
-   --output-dir map_localization_test/outputs/20260818_clean \\
+   --ply outputs/maps/20260818_dense.ply \\
+   --output-dir outputs/maps/20260818_clean \\
    --confidence-threshold 1.0 \\
    --voxel-size-m 0.03 \\
    --min-points-per-voxel 2 \\
@@ -131,8 +131,8 @@ calibrated point cloud
 
 ```bash
 python3 Integrated_version/map/build_3d_navigation_map.py \\
-   --ply map_localization_test/outputs/20260818_calibrated_y/20260818_floor_calibrated.ply \\
-   --output-dir map_localization_test/outputs/20260818_navigation \\
+   --ply outputs/maps/20260818_calibrated_y/20260818_floor_calibrated.ply \\
+   --output-dir outputs/maps/20260818_navigation \\
    --vertical-axis=-y \\
    --resolution-m 0.05 \\
    --robot-radius-m 0.20
@@ -142,8 +142,8 @@ python3 Integrated_version/map/build_3d_navigation_map.py \\
 
 ```bash
 python3 Integrated_version/map/build_3d_navigation_map.py \\
-   --ply map_localization_test/outputs/20260804_calibrated_z/20260804_floor_calibrated.ply \\
-   --output-dir map_localization_test/outputs/20260804_navigation \\
+   --ply outputs/maps/20260804_calibrated_z/20260804_floor_calibrated.ply \\
+   --output-dir outputs/maps/20260804_navigation \\
    --vertical-axis=-z \\
    --resolution-m 0.05 \\
    --robot-radius-m 0.20
@@ -174,7 +174,7 @@ python3 Integrated_version/map/build_3d_navigation_map.py \\
 
 ```bash
 python3 Integrated_version/planner/simulate_vehicle_path.py \\
-   --map-dir map_localization_test/outputs/20260818_navigation \\
+   --map-dir outputs/maps/20260818_navigation \\
    --start-x 0.225 \\
    --start-y 1.775 \\
    --goal-x -0.075 \\
@@ -186,7 +186,7 @@ python3 Integrated_version/planner/simulate_vehicle_path.py \\
 輸出：
 
 ```text
-map_localization_test/outputs/20260818_navigation/simulated_vehicle_path.json
+outputs/maps/20260818_navigation/simulated_vehicle_path.json
 ```
 
 實測結果為 `goal_reached`，共 54 個模擬姿態點、2.65 秒。這是路徑與碰撞驗證，不會連接 ESP32，也不會輸出馬達命令。
@@ -195,11 +195,11 @@ map_localization_test/outputs/20260818_navigation/simulated_vehicle_path.json
 
 ```bash
 python3 Integrated_version/map/export_height_color_viewer.py \\
-   --ply map_localization_test/outputs/20260818_calibrated_y/20260818_floor_calibrated.ply \\
-   --output map_localization_test/outputs/20260818_navigation/20260818_navigation_viewer.html \\
+   --ply outputs/maps/20260818_calibrated_y/20260818_floor_calibrated.ply \\
+   --output outputs/maps/20260818_navigation/20260818_navigation_viewer.html \\
    --up-axis=-y \\
    --floor-height 0 \\
-   --path-json map_localization_test/outputs/20260818_navigation/simulated_vehicle_path.json
+   --path-json outputs/maps/20260818_navigation/simulated_vehicle_path.json
 ```
 
 瀏覽器開啟：
@@ -209,3 +209,23 @@ http://127.0.0.1:18089/20260818_navigation/20260818_navigation_viewer.html
 ```
 
 3D viewer 中紅色線是車輛模擬路線，綠色球是起點，紅色球是終點。
+
+## 網頁導航與姿態安全條件
+
+啟動網頁介面：
+
+```bash
+python3 Integrated_version/web/server.py \
+   --map-dir outputs/maps/20260818_navigation \
+   --use-obstacle-distance
+```
+
+`/api/plan` 與 `/api/navigation/start` 只接受 `current_pose.json` 中有效、`status=ok`、信心值至少 `0.5` 且 10 秒內更新的姿態。可用 `--min-pose-confidence` 與 `--max-pose-age-s` 調整門檻。`Start` 目前只更新導航狀態，尚不會送出 ESP32 馬達命令。
+
+規劃器會拒絕地圖外座標與斜切障礙角落；啟用距離場時，路徑簡化也會保留 A* 選擇的安全成本。
+
+回歸測試：
+
+```bash
+python3 -m unittest discover -s Integrated_version/tests -v
+```

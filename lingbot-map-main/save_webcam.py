@@ -1,8 +1,12 @@
 import cv2
 import time
 import sys
+from datetime import datetime
+from pathlib import Path
 
-OUT_FILE = 'webcam_record.mp4'
+capture_dir = Path(__file__).resolve().parents[1] / 'data/captures'
+capture_dir.mkdir(parents=True, exist_ok=True)
+OUT_FILE = str(capture_dir / (datetime.now().strftime('webcam_%Y%m%d_%H%M%S_%f') + '.mp4'))
 DURATION = 10.0  # seconds
 FPS = 10.0
 

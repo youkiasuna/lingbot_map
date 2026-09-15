@@ -126,7 +126,7 @@ def main() -> None:
     goal_px = grid.world_to_pixel(*goal)
     distances = load_obstacle_distance(args.map_dir, grid) if args.use_obstacle_distance else None
     raw = astar_pixels(grid, start_px, goal_px, False, distances, radius * 2.0, 1.0)
-    simplified = simplify_path(grid, raw, False)
+    simplified = simplify_path(grid, raw, False, distances, radius * 2.0, 1.0)
     waypoints = [grid.pixel_to_world(*pixel) for pixel in simplified]
     trajectory, success, reason = simulate(
         grid, waypoints, collision_radius, args.max_speed_mps, args.max_angular_speed_radps,

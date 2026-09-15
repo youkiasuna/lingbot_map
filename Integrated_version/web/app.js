@@ -76,7 +76,7 @@ function parsePgmToCanvas(bytes) {
   const height = Number(nextToken());
   const maxValue = Number(nextToken());
   if (maxValue !== 255) throw new Error("Expected 8-bit PGM map.");
-  if (bytes[index] <= 32) index += 1;
+  while (index < bytes.length && bytes[index] <= 32) index += 1;
 
   const pixels = bytes.slice(index, index + width * height);
   const imageData = new ImageData(width, height);
@@ -148,6 +148,9 @@ function canvasToWorld(clientX, clientY) {
   const y = (clientY - rect.top) * ratio;
   const px = (x - model.view.offsetX) / model.view.scale;
   const py = (y - model.view.offsetY) / model.view.scale;
+  if (!model.imageCanvas || px < 0 || py < 0 || px >= model.imageCanvas.width || py >= model.imageCanvas.height) {
+    return null;
+  }
   return {
     x_m: model.map.origin_u_m + px * model.map.meters_per_pixel,
     y_m: model.map.origin_v_m - py * model.map.meters_per_pixel,
@@ -168,6 +171,14 @@ function render() {
   drawGoal();
   drawPose();
   updateText();
+  updateControls();
+}
+
+function updateControls() {
+  const hasPose = Boolean(model.pose);
+  const hasPath = Boolean(model.path && model.path.waypoints && model.path.waypoints.length >= 2);
+  startBtn.disabled = !hasPose || !hasPath;
+  stopBtn.disabled = !model.navigation || model.navigation.state === "STOP";
 }
 
 function drawPath() {
@@ -251,6 +262,10 @@ async function planToClick(event) {
     return;
   }
   const goal = canvasToWorld(event.clientX, event.clientY);
+  if (!goal) {
+    stateText.textContent = "Goal outside map";
+    return;
+  }
   model.goal = goal;
   goalText.textContent = `${goal.x_m.toFixed(2)}, ${goal.y_m.toFixed(2)}`;
   stateText.textContent = "Planning";

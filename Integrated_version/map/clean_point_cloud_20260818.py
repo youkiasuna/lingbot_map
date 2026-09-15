@@ -121,8 +121,8 @@ def write_ply(path: Path, voxels: dict[tuple[int, int, int], Voxel], min_points:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Clean the 20260818 dense PLY without classifying surfaces yet.")
-    parser.add_argument("--ply", type=Path, default=Path("map_localization_test/outputs/20260818_dense.ply"))
-    parser.add_argument("--output-dir", type=Path, default=Path("map_localization_test/outputs/20260818_clean"))
+    parser.add_argument("--ply", type=Path, default=Path("outputs/maps/20260818_dense.ply"))
+    parser.add_argument("--output-dir", type=Path, default=Path("outputs/maps/20260818_clean"))
     parser.add_argument("--confidence-threshold", type=float, default=1.0)
     parser.add_argument("--voxel-size-m", type=float, default=0.03)
     parser.add_argument("--min-points-per-voxel", type=int, default=2)

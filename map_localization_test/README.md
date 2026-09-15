@@ -51,7 +51,7 @@ python map_localization_test/build_topdown_map.py \
 目前建議流程是：
 
 ```text
-videos/*.mp4
+data/videos/*.mp4
   -> LingBot-MAP demo.py 產生 dense PLY
   -> build_topdown_map.py 投影成 map.pgm + map.json
   -> mock_pose_tracker.py 測試座標系
@@ -64,20 +64,20 @@ videos/*.mp4
 
 ```bash
 /home/ee303/miniconda3/envs/lingbot-map/bin/python lingbot-map-main/demo.py \
-  --model_path lingbot-map-main/checkpoints/lingbot-map.pt \
-  --image_folder videos/20260804_frames \
+  --model_path models/lingbot-map.pt \
+  --image_folder data/frames/20260804_frames \
   --image_size 518 \
   --camera_num_iterations 4 \
   --offload_to_cpu \
   --use_sdpa \
   --downsample_factor 1 \
   --conf_threshold 1.0 \
-  --output_ply map_localization_test/outputs/20260804_dense.ply
+  --output_ply outputs/maps/20260804_dense.ply
 ```
 
 目前輸出結果：
 
-- `map_localization_test/outputs/20260804_dense.ply`
+- `outputs/maps/20260804_dense.ply`
 - 約 `50,865,528` points
 - 約 `922M`
 
@@ -86,9 +86,9 @@ videos/*.mp4
 - `--downsample_factor 1`：保留最多點，最細緻，但 PLY 很大。
 - `--conf_threshold 1.0`：保留較多低 confidence 點；若雜點太多，可試 `1.5` 或 `2.0`。
 - `--image_size 518`：目前 checkpoint 相容解析度。
-- `--fps 30` / 直接用 `videos/20260804_frames`：保留完整 334 frames。
+- `--fps 30` / 直接用 `data/frames/20260804_frames`：保留完整 334 frames。
 
-如果要重新從影片抽 frame，可以改用 `--video_path videos/20260804.mp4 --fps 30`；第一次已經產生 `videos/20260804_frames` 後，後續直接用 `--image_folder` 比較快。
+如果要重新從影片抽 frame，可以改用 `--video_path data/videos/20260804.mp4 --fps 30`；第一次已經產生 `data/frames/20260804_frames` 後，後續直接用 `--image_folder` 比較快。
 
 ### 2. 快速確認 PLY 可讀
 
@@ -96,7 +96,7 @@ videos/*.mp4
 
 ```bash
 python3 map_localization_test/build_topdown_map.py \
-  --ply map_localization_test/outputs/20260804_dense.ply \
+  --ply outputs/maps/20260804_dense.ply \
   --output-dir /tmp/lingbot_dense_map_check \
   --max-points 1000
 ```
@@ -109,8 +109,8 @@ python3 map_localization_test/build_topdown_map.py \
 
 ```bash
 python3 map_localization_test/build_topdown_map.py \
-  --ply map_localization_test/outputs/20260804_dense.ply \
-  --output-dir map_localization_test/outputs/20260804_map \
+  --ply outputs/maps/20260804_dense.ply \
+  --output-dir outputs/maps/20260804_map \
   --up-axis z \
   --meters-per-pixel 0.05 \
   --padding-m 0.5 \
@@ -119,8 +119,8 @@ python3 map_localization_test/build_topdown_map.py \
 
 輸出會有：
 
-- `map_localization_test/outputs/20260804_map/map.pgm`
-- `map_localization_test/outputs/20260804_map/map.json`
+- `outputs/maps/20260804_map/map.pgm`
+- `outputs/maps/20260804_map/map.json`
 
 調參方式：
 
@@ -135,7 +135,7 @@ PGM 和 `map.json` 產生後，用 mock tracker 先確認座標更新流程：
 
 ```bash
 python3 map_localization_test/mock_pose_tracker.py \
-  --map-json map_localization_test/outputs/20260804_map/map.json
+  --map-json outputs/maps/20260804_map/map.json
 ```
 
 互動指令：
@@ -150,7 +150,7 @@ python3 map_localization_test/mock_pose_tracker.py \
 每次更新會寫到：
 
 ```text
-map_localization_test/outputs/20260804_map/current_pose.json
+outputs/maps/20260804_map/current_pose.json
 ```
 
 ### 5. 後續真正定位要補的資料
@@ -176,7 +176,7 @@ PLY/PGM 只能建立地圖底圖。若要讓車子「知道自己在哪裡」，
 
 ```bash
 python3 map_localization_test/web_server.py \
-  --map-dir map_localization_test/outputs/20260804_map \
+  --map-dir outputs/maps/20260804_map \
   --port 18088
 ```
 
@@ -198,7 +198,7 @@ http://127.0.0.1:18088
 
 ```bash
 python3 map_localization_test/grid_navigation.py \
-  --map-dir map_localization_test/outputs/20260804_map \
+  --map-dir outputs/maps/20260804_map \
   --goal-x 2.35 \
   --goal-y 1.80
 ```

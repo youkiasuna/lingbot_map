@@ -285,8 +285,8 @@ def write_preview_png(pgm_path: Path, output_path: Path, scale: int) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze the 20260818 PLY and project floor vs obstacle cells into a 2D map.")
-    parser.add_argument("--ply", type=Path, default=Path("map_localization_test/outputs/20260818_dense.ply"), help="Input PLY file")
-    parser.add_argument("--output-dir", type=Path, default=Path("map_localization_test/outputs/20260818_floor_obstacle"), help="Output directory")
+    parser.add_argument("--ply", type=Path, default=Path("outputs/maps/20260818_dense.ply"), help="Input PLY file")
+    parser.add_argument("--output-dir", type=Path, default=Path("outputs/maps/20260818_floor_obstacle"), help="Output directory")
     parser.add_argument("--up-axis", choices=("x", "y", "z"), default="z", help="Vertical axis of the point cloud")
     parser.add_argument("--meters-per-pixel", type=float, default=0.05, help="Map resolution in metres per pixel")
     parser.add_argument("--padding-m", type=float, default=0.5, help="Map border around the point cloud")

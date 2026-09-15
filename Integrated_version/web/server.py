@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import mimetypes
+import os
 import sys
+import tempfile
 import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,16 +25,40 @@ from grid_navigation import plan_path
 
 
 STATIC_DIR = INTEGRATED_ROOT / "web"
+MAX_REQUEST_BODY_BYTES = 16 * 1024
+
+
+class NavigationPreconditionError(ValueError):
+    """Raised when planning or navigation lacks a usable localization pose."""
 
 
 def read_json(path: Path) -> dict[str, object] | None:
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ValueError(f"{path.name} is not valid JSON.") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path.name} must contain a JSON object.")
+    return payload
 
 
 def write_json(path: Path, payload: dict[str, object]) -> None:
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = json.dumps(payload, indent=2).encode("utf-8") + b"\n"
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False) as handle:
+            temporary_path = Path(handle.name)
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    except Exception:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+        raise
 
 
 class NavigationHandler(BaseHTTPRequestHandler):
@@ -40,6 +67,8 @@ class NavigationHandler(BaseHTTPRequestHandler):
     use_obstacle_distance: bool
     safety_radius_m: float
     risk_weight: float
+    min_pose_confidence: float
+    max_pose_age_s: float
 
     def log_message(self, fmt: str, *args: object) -> None:
         print(f"{self.address_string()} - {fmt % args}")
@@ -103,13 +132,52 @@ class NavigationHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def read_request_json(self) -> dict[str, object]:
-        length = int(self.headers.get("Content-Length", "0"))
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw_length)
+        except ValueError as exc:
+            raise ValueError("Content-Length must be an integer.") from exc
         if length <= 0:
             return {}
-        return json.loads(self.rfile.read(length).decode("utf-8"))
+        if length > MAX_REQUEST_BODY_BYTES:
+            raise ValueError("Request body is too large.")
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("Request body must be valid JSON.") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("Request body must be a JSON object.")
+        return payload
+
+    def get_navigation_pose(self) -> tuple[float, float]:
+        pose = read_json(self.map_dir / "current_pose.json")
+        if pose is None:
+            raise NavigationPreconditionError("current_pose.json is missing. Start the mock or visual localizer first.")
+        try:
+            x_m, y_m, yaw_deg, timestamp, confidence = (float(pose[key]) for key in ("x_m", "y_m", "yaw_deg", "timestamp_unix", "confidence"))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise NavigationPreconditionError("current_pose.json is missing a valid pose, timestamp, or confidence.") from exc
+        if not all(math.isfinite(value) for value in (x_m, y_m, yaw_deg, timestamp, confidence)):
+            raise NavigationPreconditionError("current_pose.json contains non-finite pose values.")
+        if str(pose.get("status", "ok")).lower() != "ok":
+            raise NavigationPreconditionError("Localization status is not ok.")
+        if not 0.0 <= confidence <= 1.0:
+            raise NavigationPreconditionError("Localization confidence must be between 0 and 1.")
+        if confidence < self.min_pose_confidence:
+            raise NavigationPreconditionError(f"Localization confidence {confidence:.2f} is below the required {self.min_pose_confidence:.2f}.")
+        age_s = time.time() - timestamp
+        if age_s < -5.0:
+            raise NavigationPreconditionError("Localization timestamp is too far in the future.")
+        if age_s > self.max_pose_age_s:
+            raise NavigationPreconditionError(f"Localization pose is stale ({age_s:.1f} s old).")
+        return x_m, y_m
 
     def handle_get_map(self) -> None:
-        metadata = read_json(self.map_dir / "map.json")
+        try:
+            metadata = read_json(self.map_dir / "map.json")
+        except ValueError as exc:
+            self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+            return
         if metadata is None:
             self.send_error_json(HTTPStatus.NOT_FOUND, "map.json not found in map directory.")
             return
@@ -119,7 +187,11 @@ class NavigationHandler(BaseHTTPRequestHandler):
         self.send_json({"status": "ok", "map": payload})
 
     def handle_get_optional_json(self, filename: str, key: str) -> None:
-        payload = read_json(self.map_dir / filename)
+        try:
+            payload = read_json(self.map_dir / filename)
+        except ValueError as exc:
+            self.send_error_json(HTTPStatus.CONFLICT, str(exc))
+            return
         if payload is None:
             self.send_json({"status": "missing", key: None})
             return
@@ -130,12 +202,7 @@ class NavigationHandler(BaseHTTPRequestHandler):
             body = self.read_request_json()
             goal_x = float(body["goal_x_m"])
             goal_y = float(body["goal_y_m"])
-            pose = read_json(self.map_dir / "current_pose.json")
-            if pose is None:
-                self.send_error_json(HTTPStatus.CONFLICT, "current_pose.json is missing. Start the mock or visual localizer first.")
-                return
-            start_x = float(pose["x_m"])
-            start_y = float(pose["y_m"])
+            start_x, start_y = self.get_navigation_pose()
             result = plan_path(
                 self.map_dir,
                 start_x,
@@ -154,13 +221,24 @@ class NavigationHandler(BaseHTTPRequestHandler):
                 "updated_at_unix": time.time(),
             })
             self.send_json({"status": "ok", "path": result})
+        except NavigationPreconditionError as exc:
+            self.send_error_json(HTTPStatus.CONFLICT, str(exc))
         except (KeyError, TypeError, ValueError) as exc:
             self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
         except FileNotFoundError as exc:
             self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
 
     def handle_navigation_start(self) -> None:
-        path = read_json(self.map_dir / "planned_path.json")
+        try:
+            self.get_navigation_pose()
+        except NavigationPreconditionError as exc:
+            self.send_error_json(HTTPStatus.CONFLICT, str(exc))
+            return
+        try:
+            path = read_json(self.map_dir / "planned_path.json")
+        except ValueError as exc:
+            self.send_error_json(HTTPStatus.CONFLICT, str(exc))
+            return
         if path is None:
             self.send_error_json(HTTPStatus.CONFLICT, "No planned_path.json exists. Select a goal first.")
             return
@@ -192,8 +270,14 @@ def main() -> None:
     parser.add_argument("--use-obstacle-distance", action="store_true", help="Apply obstacle proximity penalty when distance field exists")
     parser.add_argument("--safety-radius-m", type=float, default=0.25, help="Distance under which obstacle proximity is penalized")
     parser.add_argument("--risk-weight", type=float, default=1.0, help="A* cost weight for obstacle proximity")
+    parser.add_argument("--min-pose-confidence", type=float, default=0.5, help="Minimum localization confidence for planning or start")
+    parser.add_argument("--max-pose-age-s", type=float, default=10.0, help="Maximum accepted localization age in seconds")
     args = parser.parse_args()
 
+    if args.safety_radius_m <= 0 or args.risk_weight < 0:
+        raise SystemExit("--safety-radius-m must be positive and --risk-weight cannot be negative")
+    if not 0.0 <= args.min_pose_confidence <= 1.0 or args.max_pose_age_s <= 0:
+        raise SystemExit("--min-pose-confidence must be in [0, 1] and --max-pose-age-s must be positive")
     if not (args.map_dir / "map.pgm").exists() or not (args.map_dir / "map.json").exists():
         raise SystemExit(f"{args.map_dir} must contain map.pgm and map.json")
 
@@ -206,12 +290,19 @@ def main() -> None:
             "use_obstacle_distance": args.use_obstacle_distance,
             "safety_radius_m": args.safety_radius_m,
             "risk_weight": args.risk_weight,
+            "min_pose_confidence": args.min_pose_confidence,
+            "max_pose_age_s": args.max_pose_age_s,
         },
     )
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"Serving navigation UI at http://{args.host}:{args.port}")
     print(f"Map directory: {args.map_dir}")
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("Stopping navigation server.")
+    finally:
+        server.server_close()
 
 
 if __name__ == "__main__":

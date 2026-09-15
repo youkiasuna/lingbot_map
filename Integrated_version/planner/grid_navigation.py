@@ -37,8 +37,13 @@ class GridMap:
         return float(self.metadata["origin_v_m"])
 
     def world_to_pixel(self, x_m: float, y_m: float) -> tuple[int, int]:
-        px = int((x_m - self.origin_u) / self.resolution)
-        py = int((self.origin_v - y_m) / self.resolution)
+        if not math.isfinite(x_m) or not math.isfinite(y_m):
+            raise ValueError("World coordinates must be finite numbers.")
+        # int() truncates toward zero, which maps positions just outside the
+        # left/top map boundary into cell zero. Floor keeps out-of-bounds
+        # coordinates out of the map so traversability validation can reject them.
+        px = math.floor((x_m - self.origin_u) / self.resolution)
+        py = math.floor((self.origin_v - y_m) / self.resolution)
         return px, py
 
     def pixel_to_world(self, px: int, py: int) -> tuple[float, float]:
@@ -159,18 +164,20 @@ def astar_pixels(
     if not grid.is_traversable(*goal, allow_unknown=allow_unknown):
         raise ValueError(f"Goal pixel {goal} is not traversable.")
 
-    open_heap: list[tuple[float, int, tuple[int, int]]] = []
-    heapq.heappush(open_heap, (octile_distance(start, goal), 0, start))
+    open_heap: list[tuple[float, float, int, tuple[int, int]]] = []
+    heapq.heappush(open_heap, (octile_distance(start, goal), 0.0, 0, start))
     came_from: dict[tuple[int, int], tuple[int, int]] = {}
     g_score = {start: 0.0}
     sequence = 0
 
     while open_heap:
-        _, _, current = heapq.heappop(open_heap)
+        _, popped_g, _, current = heapq.heappop(open_heap)
+        if popped_g != g_score.get(current):
+            continue
         if current == goal:
             return reconstruct_path(came_from, current)
 
-        current_g = g_score[current]
+        current_g = popped_g
         for next_node, step_cost in neighbors(grid, current, allow_unknown):
             risk = 0.0
             if obstacle_distances is not None:
@@ -183,7 +190,7 @@ def astar_pixels(
             g_score[next_node] = tentative_g
             sequence += 1
             priority = tentative_g + octile_distance(next_node, goal)
-            heapq.heappush(open_heap, (priority, sequence, next_node))
+            heapq.heappush(open_heap, (priority, tentative_g, sequence, next_node))
 
     raise ValueError("No path found between start and goal.")
 
@@ -227,13 +234,54 @@ def has_line_of_sight(
     b: tuple[int, int],
     allow_unknown: bool,
 ) -> bool:
-    return all(grid.is_traversable(px, py, allow_unknown) for px, py in line_pixels(a, b))
+    previous: tuple[int, int] | None = None
+    for px, py in line_pixels(a, b):
+        if not grid.is_traversable(px, py, allow_unknown):
+            return False
+        if previous is not None:
+            dx = px - previous[0]
+            dy = py - previous[1]
+            if abs(dx) > 1 or abs(dy) > 1:
+                return False
+            # A shortcut must obey the same no-corner-cutting rule as A*.
+            if dx != 0 and dy != 0:
+                if not grid.is_traversable(previous[0] + dx, previous[1], allow_unknown):
+                    return False
+                if not grid.is_traversable(previous[0], previous[1] + dy, allow_unknown):
+                    return False
+        previous = (px, py)
+    return True
+
+
+def pixels_path_cost(
+    grid: GridMap,
+    path: Iterable[tuple[int, int]],
+    obstacle_distances: list[float] | None,
+    safety_radius_m: float,
+    risk_weight: float,
+) -> float:
+    """Return the same distance-plus-risk cost used by A* for a pixel path."""
+    points = list(path)
+    total = 0.0
+    for previous, current in zip(points, points[1:]):
+        dx = current[0] - previous[0]
+        dy = current[1] - previous[1]
+        if abs(dx) > 1 or abs(dy) > 1:
+            raise ValueError("Path contains non-neighboring pixels.")
+        total += math.hypot(dx, dy)
+        if obstacle_distances is not None:
+            distance = obstacle_distances[current[1] * grid.width + current[0]]
+            total += risk_penalty(distance, safety_radius_m, risk_weight)
+    return total
 
 
 def simplify_path(
     grid: GridMap,
     path: list[tuple[int, int]],
     allow_unknown: bool = False,
+    obstacle_distances: list[float] | None = None,
+    safety_radius_m: float = 0.5,
+    risk_weight: float = 2.0,
 ) -> list[tuple[int, int]]:
     if len(path) <= 2:
         return path
@@ -242,7 +290,17 @@ def simplify_path(
     anchor = 0
     probe = 2
     while probe < len(path):
-        if has_line_of_sight(grid, path[anchor], path[probe], allow_unknown):
+        can_see = has_line_of_sight(grid, path[anchor], path[probe], allow_unknown)
+        if can_see and obstacle_distances is not None:
+            shortcut = list(line_pixels(path[anchor], path[probe]))
+            shortcut_cost = pixels_path_cost(
+                grid, shortcut, obstacle_distances, safety_radius_m, risk_weight
+            )
+            original_cost = pixels_path_cost(
+                grid, path[anchor : probe + 1], obstacle_distances, safety_radius_m, risk_weight
+            )
+            can_see = shortcut_cost <= original_cost + 1e-9
+        if can_see:
             probe += 1
             continue
         simplified.append(path[probe - 1])
@@ -283,7 +341,14 @@ def plan_path(
         safety_radius_m,
         risk_weight,
     )
-    waypoint_pixels = simplify_path(grid, raw_pixels, allow_unknown)
+    waypoint_pixels = simplify_path(
+        grid,
+        raw_pixels,
+        allow_unknown,
+        obstacle_distances,
+        safety_radius_m,
+        risk_weight,
+    )
     raw_world = [{"x_m": x, "y_m": y} for x, y in (grid.pixel_to_world(px, py) for px, py in raw_pixels)]
     waypoints = [{"x_m": x, "y_m": y} for x, y in (grid.pixel_to_world(px, py) for px, py in waypoint_pixels)]
     return {

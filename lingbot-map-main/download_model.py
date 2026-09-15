@@ -1,6 +1,7 @@
 from huggingface_hub import list_repo_files, hf_hub_download
 import sys
 import os
+from pathlib import Path
 
 repo_id = "robbyant/lingbot-map"
 print(f"Listing files in {repo_id}...", flush=True)
@@ -31,7 +32,7 @@ chosen = candidates[0]
 print(f"Chosen file to download: {chosen}", flush=True)
 
 try:
-    path = hf_hub_download(repo_id=repo_id, filename=chosen)
+    path = hf_hub_download(repo_id=repo_id, filename=chosen, local_dir=Path(__file__).resolve().parents[1] / 'models')
     print(f"Downloaded to: {os.path.abspath(path)}")
 except Exception as e:
     print("ERROR downloading file:", e)

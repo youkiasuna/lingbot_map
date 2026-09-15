@@ -13,6 +13,7 @@ import argparse
 import html
 import json
 import math
+import random
 import re
 import struct
 from pathlib import Path
@@ -92,6 +93,85 @@ def percentile(values: list[float], fraction: float) -> float:
     return ordered[min(len(ordered) - 1, round((len(ordered) - 1) * fraction))]
 
 
+def cross(a: tuple[float, float, float], b: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def normalize(vector: tuple[float, float, float]) -> tuple[float, float, float]:
+    length = math.sqrt(sum(value * value for value in vector))
+    if length < 1e-9:
+        raise ValueError("Cannot normalize a zero-length vector.")
+    return tuple(value / length for value in vector)
+
+
+def plane_from_points(a, b, c):
+    try:
+        normal = normalize(cross(
+            (b[0] - a[0], b[1] - a[1], b[2] - a[2]),
+            (c[0] - a[0], c[1] - a[1], c[2] - a[2]),
+        ))
+    except ValueError:
+        return None
+    return (*normal, -sum(normal[index] * a[index] for index in range(3)))
+
+
+def auto_orient_points(points, threshold: float = 0.05, iterations: int = 400):
+    """Fit the dominant scan plane and convert the sampled cloud to Y-up."""
+    if len(points) < 3:
+        raise ValueError("At least three points are required for automatic orientation.")
+    fit_points = points[::max(1, math.ceil(len(points) / 5_000))]
+    rng = random.Random(20260818)
+    best_plane = None
+    best_inliers = []
+    for _ in range(iterations):
+        plane = plane_from_points(*rng.sample(fit_points, 3))
+        if plane is None:
+            continue
+        a, b, c, d = plane
+        inliers = [
+            index for index, point in enumerate(fit_points)
+            if abs(a * point[0] + b * point[1] + c * point[2] + d) <= threshold
+        ]
+        if len(inliers) > len(best_inliers):
+            best_plane, best_inliers = plane, inliers
+    if best_plane is None or len(best_inliers) < 3:
+        raise ValueError("Automatic floor detection could not find a dominant plane.")
+
+    normal = best_plane[:3]
+    centroid = tuple(sum(point[index] for point in fit_points) / len(fit_points) for index in range(3))
+    if sum(normal[index] * centroid[index] for index in range(3)) + best_plane[3] < 0:
+        normal = tuple(-value for value in normal)
+
+    target = (0.0, 1.0, 0.0)
+    rotation_axis = cross(normal, target)
+    axis_length = math.sqrt(sum(value * value for value in rotation_axis))
+    dot = max(-1.0, min(1.0, sum(normal[index] * target[index] for index in range(3))))
+    if axis_length < 1e-9:
+        axis, angle = (1.0, 0.0, 0.0), (0.0 if dot > 0 else math.pi)
+    else:
+        axis, angle = tuple(value / axis_length for value in rotation_axis), math.acos(dot)
+    cosine, sine = math.cos(angle), math.sin(angle)
+
+    def rotate(point):
+        dot_product = sum(point[index] * axis[index] for index in range(3))
+        cross_value = cross(axis, point)
+        return tuple(
+            point[index] * cosine + cross_value[index] * sine
+            + axis[index] * dot_product * (1.0 - cosine)
+            for index in range(3)
+        )
+
+    rotated = [rotate(point) for point in points]
+    rotated_fit = [rotate(point) for point in fit_points]
+    floor_height = percentile([rotated_fit[index][1] for index in best_inliers], 0.5)
+    transformed = [(point[0], point[1] - floor_height, point[2]) for point in rotated]
+    return transformed, normal, len(best_inliers)
+
+
 def build_html(
     points: list[tuple[float, float, float]],
     source_name: str,
@@ -125,6 +205,9 @@ def build_html(
 html, body {{ margin: 0; width: 100%; height: 100%; overflow: hidden; background: #071018; font-family: system-ui, sans-serif; }}
 #viewer {{ width: 100%; height: 100%; }}
 #panel {{ position: fixed; top: 16px; left: 16px; width: min(330px, calc(100vw - 32px)); padding: 14px 16px; border: 1px solid #29404c; border-radius: 10px; background: rgba(7, 16, 24, .9); box-shadow: 0 10px 30px rgba(0,0,0,.3); }}
+#panel.panel-collapsed {{ width: 44px; height: 44px; padding: 5px; overflow: hidden; }}
+#panel.panel-collapsed > :not(#collapsePanel) {{ display: none; }}
+#collapsePanel {{ position: absolute; top: 5px; right: 5px; width: 32px; height: 32px; margin: 0; padding: 0; font-size: 18px; line-height: 1; }}
 h1 {{ margin: 0 0 8px; font-size: 17px; }}
 .meta {{ color: #a8c0ca; font-size: 12px; line-height: 1.5; }}
 label {{ display: block; margin-top: 12px; color: #d9e8ec; font-size: 13px; }}
@@ -140,6 +223,7 @@ button:hover {{ background: #184354; }}
 <body>
 <div id="viewer"></div>
 <section id="panel">
+  <button id="collapsePanel" type="button" title="收合工具列" aria-label="收合工具列">−</button>
     <h1>{scan_name} 高度著色 3D 點雲</h1>
     <div class="meta">來源：{html.escape(source_name)}<br>抽樣：每 {stride:,} 個原始點取 1 點，共 {len(points):,} 點<br>垂直軸：{up_axis.upper()}；藍色較低，紅色較高；地板估計高度：{floor_height:.3f}</div>
   <div class="legend"></div>
@@ -270,6 +354,13 @@ document.querySelector('#overview').onclick = () => setView(overviewDirection);
 document.querySelector('#top').onclick = () => setView(upDirection);
 document.querySelector('#reset').onclick = () => {{ controls.reset(); setView(overviewDirection); }};
 document.querySelector('#pointSize').oninput = (event) => material.size = Number(event.target.value);
+const collapsePanel = document.querySelector('#collapsePanel');
+collapsePanel.onclick = () => {{
+  const collapsed = document.querySelector('#panel').classList.toggle('panel-collapsed');
+  collapsePanel.textContent = collapsed ? '+' : '−';
+  collapsePanel.title = collapsed ? '展開工具列' : '收合工具列';
+  collapsePanel.setAttribute('aria-label', collapsePanel.title);
+}};
 document.querySelector('#status').textContent = `場景完成：${{data.up_axis.toUpperCase()}} 軸高度 ${{minHeight.toFixed(3)}} 到 ${{maxHeight.toFixed(3)}}，地板估計 ${{data.floor_height.toFixed(3)}}`;
 addEventListener('resize', () => {{ camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }});
 function animate() {{ requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }}
@@ -282,10 +373,11 @@ animate();
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export 20260818 point cloud as a height-colored web viewer.")
-    parser.add_argument("--ply", type=Path, default=Path("map_localization_test/outputs/20260818_dense.ply"))
-    parser.add_argument("--output", type=Path, default=Path("map_localization_test/outputs/20260818_height_color_viewer.html"))
+    parser.add_argument("--ply", type=Path, default=Path("outputs/maps/20260818_dense.ply"))
+    parser.add_argument("--output", type=Path, default=Path("outputs/maps/20260818_height_color_viewer.html"))
     parser.add_argument("--max-points", type=int, default=250_000, help="Maximum sampled points embedded in HTML")
-    parser.add_argument("--up-axis", choices=("x", "-x", "y", "-y", "z", "-z"), default="-y", help="Signed vertical axis; 20260818 uses -y")
+    parser.add_argument("--up-axis", choices=("auto", "x", "-x", "y", "-y", "z", "-z"), default="auto", help="Vertical axis; auto detects the dominant floor plane and converts to Y-up")
+    parser.add_argument("--floor-fit-threshold", type=float, default=0.05, help="RANSAC floor-plane distance threshold in point-cloud units")
     parser.add_argument("--floor-height", type=float, default=None, help="Override the displayed floor reference height")
     parser.add_argument("--path-json", type=Path, default=None, help="Optional simulated_vehicle_path.json to draw")
     args = parser.parse_args()
@@ -298,7 +390,13 @@ def main() -> None:
     if args.path_json is not None:
         path_payload = json.loads(args.path_json.read_text(encoding="utf-8"))
         path = path_payload.get("trajectory")
-    args.output.write_text(build_html(points, str(args.ply), stride, args.up_axis, args.floor_height, path), encoding="utf-8")
+    if args.up_axis == "auto":
+        points, normal, inlier_count = auto_orient_points(points, threshold=args.floor_fit_threshold)
+        print(f"Detected floor normal {normal}; inliers {inlier_count:,}; exported canonical Y-up scene.")
+        html_text = build_html(points, str(args.ply), stride, "y", 0.0, path)
+    else:
+        html_text = build_html(points, str(args.ply), stride, args.up_axis, args.floor_height, path)
+    args.output.write_text(html_text, encoding="utf-8")
     print(f"Wrote {len(points):,} sampled points (stride {stride:,}) to {args.output}")
 
 
