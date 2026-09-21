@@ -110,12 +110,13 @@ python -m json.tool outputs/runtime/live_mapping_benchmark/replay_summary.json
 
 ## 後續接入
 
-目前 runner 已透過 `runtime/local_pointcloud_backend.py` 的 `PredictionNpzBackend` 取得局部點雲。下一步可新增其他 backend，而不修改融合器：
+目前 runner 已透過 `runtime/local_pointcloud_backend.py` 的 `PredictionNpzBackend` 取得局部點雲，也支援 `LingBotMapBackend` 的離線 windowed inference。
 
-1. 新增 LingBot-MAP RGB/depth backend。
-2. 取得局部 depth/world points。
-3. 依 pose 對齊到 live map。
+1. 使用 `--backend lingbot` 以單一 window 測量真正 LingBot-MAP inference。
+2. 確認局部 `predictions.npz` 與 `world_points` 輸出。
+3. 記錄 inference、點雲與 fusion latency。
 4. 呼叫 `IncrementalVoxelMap.update()`。
 5. 將 map version 發布給 Viewer。
 
 目前 RTSP、手機影像、真正 online depth inference 與實車控制仍為 `NOT VERIFIED`。
+\n## LingBot-MAP backend 單一 window 測試\n\n這個測試會實際呼叫現有 `run_lingbot_mapping.py`，請先只執行一個 window：\n\n```bash\nPYTHONPATH=Integrated_version \\\npython Integrated_version/experiments/run_live_mapping_replay.py \\\n  --backend lingbot \\\n  --source-dir data/frames/20260818_frames \\\n  --model-path models/lingbot-map.pt \\\n  --lingbot-root lingbot-map-main \\\n  --output-dir outputs/runtime/live_mapping_lingbot_test \\\n  --window-size 10 \\\n  --process-every 10 \\\n  --max-frames 10 \\\n  --max-windows 1 \\\n  --benchmark-label lingbot_single_window\n```\n\n這會使用 GPU 與產生局部 mapping package；實際 inference latency、GPU memory 與輸出是否成功必須在 RTX 3090 主機測試，目前為 `NOT VERIFIED`。\n
