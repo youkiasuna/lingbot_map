@@ -22,7 +22,7 @@
 
 `true online monocular 3D reconstruction`
 
-這樣設計是為了先把局部點雲與融合介面測穩，再接入實際深度推論後端。
+這樣設計是為了先把局部點雲與融合介面測穩，再接入實際深度推論後端。所有 backend 都應回傳 `LocalPointCloudResult`，因此 replay、LingBot-MAP inference 與未來 RTSP backend 可以共用同一個 fusion runner。
 
 ## 執行
 
@@ -110,9 +110,9 @@ python -m json.tool outputs/runtime/live_mapping_benchmark/replay_summary.json
 
 ## 後續接入
 
-下一步才將 `PredictionPointCloudReplay` 替換或擴充為真正的 RGB/depth backend：
+目前 runner 已透過 `runtime/local_pointcloud_backend.py` 的 `PredictionNpzBackend` 取得局部點雲。下一步可新增其他 backend，而不修改融合器：
 
-1. 以滑動視窗輸入 LingBot-MAP。
+1. 新增 LingBot-MAP RGB/depth backend。
 2. 取得局部 depth/world points。
 3. 依 pose 對齊到 live map。
 4. 呼叫 `IncrementalVoxelMap.update()`。
