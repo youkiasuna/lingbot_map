@@ -1,10 +1,10 @@
-"""ESP32 velocity adapter with a safe dry-run default."""
+"""ESP32 velocity adapter with a safe dry-run-only command sink."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import socket
+from pathlib import Path
 import time
 
 from planner.pure_pursuit import TwistCommand
@@ -12,59 +12,46 @@ from planner.pure_pursuit import TwistCommand
 
 @dataclass(frozen=True)
 class Esp32Config:
-    host: str
+    host: str = "dry-run-only"
     port: int = 8888
     command_timeout_s: float = 0.4
     dry_run: bool = True
+    command_log_path: Path | None = None
 
 
 class Esp32Adapter:
-    """Send velocity commands only when explicitly enabled."""
+    """Record velocity commands without opening a hardware connection."""
 
     def __init__(self, config: Esp32Config) -> None:
+        if not config.dry_run:
+            raise ValueError("ESP32 hardware output is disabled; use dry_run=True for this prototype.")
         self.config = config
-        self._socket: socket.socket | None = None
         self._last_send = 0.0
 
     def send(self, command: TwistCommand) -> bool:
         payload = {
+            "event": "velocity_command",
             "linear_mps": float(command.linear_mps),
             "angular_rps": float(command.angular_rps),
             "status": command.status,
+            "dry_run": True,
             "timestamp_unix": time.time(),
         }
-        if self.config.dry_run:
-            print("[DRY-RUN] ESP32", json.dumps(payload), flush=True)
-            self._last_send = time.time()
-            return True
-
-        try:
-            if self._socket is None:
-                self._socket = socket.create_connection(
-                    (self.config.host, self.config.port),
-                    timeout=self.config.command_timeout_s,
-                )
-            self._socket.sendall((json.dumps(payload) + "\n").encode("utf-8"))
-            self._last_send = time.time()
-            return True
-        except OSError:
-            self.stop()
-            return False
+        self._emit(payload)
+        self._last_send = time.time()
+        return True
 
     def stop(self) -> None:
-        stop_command = TwistCommand(0.0, 0.0, "safety_stop")
-        if self.config.dry_run:
-            print("[DRY-RUN] ESP32", json.dumps({
-                "linear_mps": 0.0,
-                "angular_rps": 0.0,
-                "status": stop_command.status,
-            }), flush=True)
-        elif self._socket is not None:
-            try:
-                self._socket.sendall(b'{"linear_mps":0.0,"angular_rps":0.0,"status":"safety_stop"}\n')
-            except OSError:
-                pass
-        self.close()
+        payload = {
+            "event": "velocity_command",
+            "linear_mps": 0.0,
+            "angular_rps": 0.0,
+            "status": "safety_stop",
+            "dry_run": True,
+            "timestamp_unix": time.time(),
+        }
+        self._emit(payload)
+        self._last_send = time.time()
 
     def watchdog_expired(self) -> bool:
         return (
@@ -73,9 +60,12 @@ class Esp32Adapter:
         )
 
     def close(self) -> None:
-        if self._socket is not None:
-            try:
-                self._socket.close()
-            except OSError:
-                pass
-            self._socket = None
+        return None
+
+    def _emit(self, payload: dict[str, object]) -> None:
+        line = json.dumps(payload)
+        print("[DRY-RUN] ESP32", line, flush=True)
+        if self.config.command_log_path is not None:
+            self.config.command_log_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.config.command_log_path.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")

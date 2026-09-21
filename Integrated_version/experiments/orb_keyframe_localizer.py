@@ -45,7 +45,47 @@ class CandidateResult:
     yaw_deg: float | None
 
 
-def read_image(path_or_image: Path | np.ndarray, target_size: tuple[int, int]) -> np.ndarray:
+@dataclass(frozen=True)
+class PreprocessInfo:
+    original_width: int
+    original_height: int
+    processed_width: int
+    processed_height: int
+    resize_mode: str
+    scale_x: float
+    scale_y: float
+    crop_x: int = 0
+    crop_y: int = 0
+    pad_x: int = 0
+    pad_y: int = 0
+
+    @property
+    def original_aspect_ratio(self) -> float:
+        return self.original_width / max(float(self.original_height), 1.0)
+
+    @property
+    def processed_aspect_ratio(self) -> float:
+        return self.processed_width / max(float(self.processed_height), 1.0)
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "original_resolution": [self.original_width, self.original_height],
+            "processed_resolution": [self.processed_width, self.processed_height],
+            "resize_mode": self.resize_mode,
+            "original_aspect_ratio": round(self.original_aspect_ratio, 6),
+            "processed_aspect_ratio": round(self.processed_aspect_ratio, 6),
+            "scale_x": round(self.scale_x, 6),
+            "scale_y": round(self.scale_y, 6),
+            "crop_xy": [self.crop_x, self.crop_y],
+            "pad_xy": [self.pad_x, self.pad_y],
+        }
+
+
+def read_image(
+    path_or_image: Path | np.ndarray,
+    target_size: tuple[int, int],
+    resize_mode: str = "stretch",
+) -> tuple[np.ndarray, PreprocessInfo]:
     if isinstance(path_or_image, np.ndarray):
         image = path_or_image
     else:
@@ -54,10 +94,76 @@ def read_image(path_or_image: Path | np.ndarray, target_size: tuple[int, int]) -
             raise ValueError(f"Failed to read image: {path_or_image}")
     if image.ndim != 3 or image.shape[2] != 3:
         raise ValueError("Input image must be a BGR/RGB color image with three channels")
+
     width, height = target_size
-    if image.shape[1] != width or image.shape[0] != height:
-        image = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
-    return image
+    original_height, original_width = int(image.shape[0]), int(image.shape[1])
+    if resize_mode not in {"stretch", "letterbox", "cover_crop"}:
+        raise ValueError(f"Unsupported resize mode: {resize_mode}")
+
+    if original_width == width and original_height == height:
+        return image, PreprocessInfo(
+            original_width=original_width,
+            original_height=original_height,
+            processed_width=width,
+            processed_height=height,
+            resize_mode=resize_mode,
+            scale_x=1.0,
+            scale_y=1.0,
+        )
+
+    if resize_mode == "stretch":
+        resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
+        return resized, PreprocessInfo(
+            original_width=original_width,
+            original_height=original_height,
+            processed_width=width,
+            processed_height=height,
+            resize_mode=resize_mode,
+            scale_x=width / max(float(original_width), 1.0),
+            scale_y=height / max(float(original_height), 1.0),
+        )
+
+    if resize_mode == "letterbox":
+        scale = min(width / max(float(original_width), 1.0), height / max(float(original_height), 1.0))
+        resized_width = max(1, int(round(original_width * scale)))
+        resized_height = max(1, int(round(original_height * scale)))
+        resized = cv2.resize(image, (resized_width, resized_height), interpolation=cv2.INTER_AREA)
+        canvas = np.zeros((height, width, 3), dtype=image.dtype)
+        pad_x = (width - resized_width) // 2
+        pad_y = (height - resized_height) // 2
+        canvas[pad_y : pad_y + resized_height, pad_x : pad_x + resized_width] = resized
+        return canvas, PreprocessInfo(
+            original_width=original_width,
+            original_height=original_height,
+            processed_width=width,
+            processed_height=height,
+            resize_mode=resize_mode,
+            scale_x=scale,
+            scale_y=scale,
+            pad_x=pad_x,
+            pad_y=pad_y,
+        )
+
+    scale = max(width / max(float(original_width), 1.0), height / max(float(original_height), 1.0))
+    resized_width = max(1, int(round(original_width * scale)))
+    resized_height = max(1, int(round(original_height * scale)))
+    resized = cv2.resize(image, (resized_width, resized_height), interpolation=cv2.INTER_AREA)
+    crop_x = max((resized_width - width) // 2, 0)
+    crop_y = max((resized_height - height) // 2, 0)
+    cropped = resized[crop_y : crop_y + height, crop_x : crop_x + width]
+    if cropped.shape[1] != width or cropped.shape[0] != height:
+        cropped = cv2.resize(cropped, (width, height), interpolation=cv2.INTER_AREA)
+    return cropped, PreprocessInfo(
+        original_width=original_width,
+        original_height=original_height,
+        processed_width=width,
+        processed_height=height,
+        resize_mode=resize_mode,
+        scale_x=scale,
+        scale_y=scale,
+        crop_x=crop_x,
+        crop_y=crop_y,
+    )
 
 
 def keypoints_to_xy(keypoints: tuple[cv2.KeyPoint, ...] | list[cv2.KeyPoint]) -> np.ndarray:
@@ -87,6 +193,8 @@ def load_map_archive(mapping_dir: Path) -> dict[str, np.ndarray]:
 
 
 def load_reference_frames(mapping_dir: Path, max_features: int, frame_stride: int) -> list[ReferenceFrame]:
+    if frame_stride < 1:
+        raise ValueError("frame_stride must be positive")
     archive = load_map_archive(mapping_dir)
     world_points = archive["world_points"]
     frame_count = int(world_points.shape[0])
@@ -98,7 +206,7 @@ def load_reference_frames(mapping_dir: Path, max_features: int, frame_stride: in
         image_path = preprocessed_dir / f"{frame_index:06d}.png"
         if not image_path.is_file():
             continue
-        image = read_image(image_path, (width, height))
+        image, _ = read_image(image_path, (width, height), resize_mode="stretch")
         keypoints_xy, descriptors = extract_orb(image, max_features)
         references.append(
             ReferenceFrame(
@@ -223,7 +331,7 @@ class OrbKeyframeLocalizer:
         self,
         mapping_dir: Path,
         max_features: int = 2000,
-        frame_stride: int = 5,
+        frame_stride: int = 1,
         ratio: float = 0.75,
         top_k: int = 5,
         min_matches: int = 25,
@@ -251,24 +359,26 @@ class OrbKeyframeLocalizer:
         self.min_world_norm = min_world_norm
         self.references = load_reference_frames(mapping_dir, max_features, frame_stride)
 
-    def localize(self, query_image: Path) -> dict[str, Any]:
+    def localize(self, query_image: Path, resize_mode: str = "stretch") -> dict[str, Any]:
         """Localize an image file while preserving the batch API."""
-        query_bgr = read_image(query_image, (self.width, self.height))
-        return self._localize_image(query_bgr, str(query_image))
+        query_bgr, preprocess = read_image(query_image, (self.width, self.height), resize_mode)
+        return self._localize_image(query_bgr, str(query_image), preprocess)
 
     def localize_frame(
         self,
         frame: np.ndarray,
         query_id: str = "camera_frame",
+        resize_mode: str = "cover_crop",
     ) -> dict[str, Any]:
         """Localize one already-captured BGR frame without disk I/O."""
-        query_bgr = read_image(frame, (self.width, self.height))
-        return self._localize_image(query_bgr, query_id)
+        query_bgr, preprocess = read_image(frame, (self.width, self.height), resize_mode)
+        return self._localize_image(query_bgr, query_id, preprocess)
 
     def _localize_image(
         self,
         query_bgr: np.ndarray,
         query_id: str,
+        preprocess: PreprocessInfo,
     ) -> dict[str, Any]:
         started_at = time.perf_counter()
         query_keypoints_xy, query_descriptors = extract_orb(query_bgr, self.max_features)
@@ -345,13 +455,24 @@ class OrbKeyframeLocalizer:
             "method": "orb_keyframe_pnp",
             "query_image": query_id,
             "status": status,
+            "preprocessing": preprocess.to_payload(),
+            "reference_loading": {
+                "frame_stride": self.frame_stride,
+                "reference_count": len(self.references),
+                "mapping_frame_count": int(self.world_points.shape[0]),
+            },
+            "camera_model": {
+                "mapping_intrinsic_source": "predictions.npz:intrinsic[reference.frame_index]",
+                "query_intrinsic_source": "mapping reference intrinsic proxy; RTSP camera intrinsics are not calibrated",
+                "pnp_image_size": [self.width, self.height],
+            },
             "query_keypoint_count": int(len(query_keypoints_xy)),
             "reference_count": len(self.references),
             "best": None if best is None else asdict(best),
             "candidates": [asdict(candidate) for candidate in candidates],
             "latency_ms": latency_ms,
             "timestamp_unix": time.time(),
-            "coordinate_note": "position_xyz is in LingBot reconstruction coordinates; x_m/y_m publish uses x/z for demo navigation.",
+            "coordinate_note": "position_xyz is in LingBot reconstruction coordinates; -Y-up scene uses X/Z as the navigation plane.",
         }
 
 
@@ -407,7 +528,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pose-file", type=Path)
     parser.add_argument("--publish-min-confidence", type=float, default=0.35)
     parser.add_argument("--max-features", type=int, default=2000)
-    parser.add_argument("--frame-stride", type=int, default=5)
+    parser.add_argument("--frame-stride", type=int, default=1)
+    parser.add_argument("--resize-mode", choices=("stretch", "letterbox", "cover_crop"), default="stretch")
     parser.add_argument("--ratio", type=float, default=0.75)
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--min-matches", type=int, default=25)
@@ -432,7 +554,7 @@ def main() -> int:
         reprojection_error_px=args.reprojection_error_px,
         pnp_iterations=args.pnp_iterations,
     )
-    result = localizer.localize(args.query_image)
+    result = localizer.localize(args.query_image, resize_mode=args.resize_mode)
 
     if args.output_json:
         args.output_json.parent.mkdir(parents=True, exist_ok=True)
@@ -447,4 +569,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
