@@ -240,7 +240,7 @@ def main() -> int:
                 confidence=pose.confidence if pose else 0.0,
                 localization_status=result.get("status", "unknown"),
                 mode=state.mode,
-                path_xz=manager._waypoints,
+                path_xz=manager.waypoints,
             )
 
             if planner_failed:
