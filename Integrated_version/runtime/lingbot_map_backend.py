@@ -89,6 +89,9 @@ class LingBotMapBackend:
                     stride = max(1, len(points) // self.config.max_points_per_window)
                     points = points[::stride][:self.config.max_points_per_window]
                 timings["point_extract"] = round((time.perf_counter() - load_started) * 1000.0, 3)
+                source_path = str(package_dir / "predictions.npz")
+                if not self.config.keep_window_packages:
+                    shutil.rmtree(package_dir)
             yield LocalPointCloudResult(
                 backend=self.name,
                 start_frame=start,
@@ -99,7 +102,7 @@ class LingBotMapBackend:
                 confidence=1.0,
                 latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
                 timings_ms=timings,
-                source=str(package_dir / "predictions.npz"),
+                source=source_path,
             )
             emitted += 1
 
