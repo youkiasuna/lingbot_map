@@ -6,7 +6,7 @@ implemented backend replays verified world_points from predictions.npz.
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Iterator, Protocol
 import time
 import numpy as np
 
@@ -27,7 +27,7 @@ class LocalPointCloudResult:
 
 
 class LocalPointCloudBackend(Protocol):
-    def generate(self, *, window_size: int, process_every: int, max_frames: int = 0) -> list[LocalPointCloudResult]:
+    def iter_generate(self, *, window_size: int, process_every: int, max_frames: int = 0) -> Iterator[LocalPointCloudResult]:
         ...
 
 
@@ -43,16 +43,17 @@ class PredictionNpzBackend:
             max_points_per_window=max_points_per_window,
         )
 
-    def generate(self, *, window_size: int, process_every: int, max_frames: int = 0) -> list[LocalPointCloudResult]:
-        results = []
+    def iter_generate(self, *, window_size: int, process_every: int, max_frames: int = 0) -> Iterator[LocalPointCloudResult]:
         for window in self.replay.windows(
             window_size=window_size,
             process_every=process_every,
             max_frames=max_frames,
         ):
             started = time.perf_counter()
-            results.append(self._convert(window, (time.perf_counter() - started) * 1000.0))
-        return results
+            yield self._convert(window, (time.perf_counter() - started) * 1000.0)
+
+    def generate(self, *, window_size: int, process_every: int, max_frames: int = 0) -> list[LocalPointCloudResult]:
+        return list(self.iter_generate(window_size=window_size, process_every=process_every, max_frames=max_frames))
 
     def _convert(self, window: LocalWindow, latency_ms: float) -> LocalPointCloudResult:
         return LocalPointCloudResult(
