@@ -22,6 +22,7 @@ class LingBotMapBackendConfig:
     max_points_per_window: int = 100_000
     camera_num_iterations: int = 1
     use_sdpa: bool = True
+    keep_window_packages: bool = True
 
 
 class LingBotMapBackend:
@@ -64,21 +65,30 @@ class LingBotMapBackend:
                 break
             start = end - window_size
             started = time.perf_counter()
+            timings = {}
             with tempfile.TemporaryDirectory(prefix="lingbot_window_") as temp_dir:
+                image_started = time.perf_counter()
                 image_dir = Path(temp_dir) / "images"
                 image_dir.mkdir()
                 for path in self.image_paths[start:end]:
                     shutil.copy2(path, image_dir / path.name)
+                timings["image_prepare"] = round((time.perf_counter() - image_started) * 1000.0, 3)
                 package_dir = self.config.output_root / f"window_{start:06d}_{end - 1:06d}"
                 package_dir.mkdir(parents=True, exist_ok=True)
+                inference_started = time.perf_counter()
                 self._run_mapping(image_dir, package_dir)
+                timings["mapping_subprocess"] = round((time.perf_counter() - inference_started) * 1000.0, 3)
                 archive = package_dir / "predictions.npz"
+                load_started = time.perf_counter()
                 data = np.load(archive, allow_pickle=True)
                 points = np.asarray(data["world_points"], dtype=np.float32).reshape(-1, 3)
+                data.close()
+                timings["archive_load"] = round((time.perf_counter() - load_started) * 1000.0, 3)
                 points = points[np.isfinite(points).all(axis=1)]
                 if len(points) > self.config.max_points_per_window:
                     stride = max(1, len(points) // self.config.max_points_per_window)
                     points = points[::stride][:self.config.max_points_per_window]
+                timings["point_extract"] = round((time.perf_counter() - load_started) * 1000.0, 3)
             yield LocalPointCloudResult(
                 backend=self.name,
                 start_frame=start,
@@ -88,6 +98,7 @@ class LingBotMapBackend:
                 yaw_deg=None,
                 confidence=1.0,
                 latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
+                timings_ms=timings,
                 source=str(package_dir / "predictions.npz"),
             )
             emitted += 1
