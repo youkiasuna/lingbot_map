@@ -20,6 +20,8 @@ from planner.pure_pursuit import PurePursuit, PurePursuitConfig, TwistCommand
 from planner.grid_navigation import plan_path
 from experiments.orb_keyframe_localizer import OrbRelocalizer
 from runtime.navigation_manager import NavigationManager
+from runtime.live_map_manager import LiveMapManager
+from runtime.live_viewer_state import LiveViewerState
 
 
 def load_waypoints(path: Path) -> list[tuple[float, float]]:
@@ -134,6 +136,8 @@ def main() -> int:
     ))
     controller = PurePursuit(PurePursuitConfig())
     manager = NavigationManager(gate, controller)
+    live_map = LiveMapManager(args.live_map_dir)
+    viewer_state = LiveViewerState(live_map)
     static_waypoints = load_waypoints(args.waypoints) if args.waypoints else None
     dynamic_goal = args.map_dir is not None and args.goal_x is not None and args.goal_y is not None
     if static_waypoints is None and not dynamic_goal:
@@ -169,6 +173,7 @@ def main() -> int:
         },
         "dry_run": True,
         "command_log": str(args.command_log) if args.command_log else None,
+        "live_map_dir": str(args.live_map_dir),
     }), flush=True)
 
     try:
@@ -227,6 +232,16 @@ def main() -> int:
                     state.reason = "planner_failed"
                     state.command = TwistCommand(0.0, 0.0, "safety_stop")
                     print(json.dumps({"event": "astar_failed", **astar_status}), flush=True)
+
+            pose = state.pose
+            viewer_state.update(
+                position_xyz=pose.position_xyz if pose and pose.accepted else None,
+                yaw_deg=pose.yaw_deg if pose and pose.accepted else None,
+                confidence=pose.confidence if pose else 0.0,
+                localization_status=result.get("status", "unknown"),
+                mode=state.mode,
+                path_xz=manager._waypoints,
+            )
 
             if planner_failed:
                 state.mode = "LOCALIZATION_LOST"
