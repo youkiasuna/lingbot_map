@@ -45,10 +45,15 @@ class CandidateResult:
     yaw_deg: float | None
 
 
-def read_image(path: Path, target_size: tuple[int, int]) -> np.ndarray:
-    image = cv2.imread(str(path), cv2.IMREAD_COLOR)
-    if image is None:
-        raise ValueError(f"Failed to read image: {path}")
+def read_image(path_or_image: Path | np.ndarray, target_size: tuple[int, int]) -> np.ndarray:
+    if isinstance(path_or_image, np.ndarray):
+        image = path_or_image
+    else:
+        image = cv2.imread(str(path_or_image), cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Failed to read image: {path_or_image}")
+    if image.ndim != 3 or image.shape[2] != 3:
+        raise ValueError("Input image must be a BGR/RGB color image with three channels")
     width, height = target_size
     if image.shape[1] != width or image.shape[0] != height:
         image = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
@@ -247,8 +252,25 @@ class OrbKeyframeLocalizer:
         self.references = load_reference_frames(mapping_dir, max_features, frame_stride)
 
     def localize(self, query_image: Path) -> dict[str, Any]:
-        started_at = time.perf_counter()
+        """Localize an image file while preserving the batch API."""
         query_bgr = read_image(query_image, (self.width, self.height))
+        return self._localize_image(query_bgr, str(query_image))
+
+    def localize_frame(
+        self,
+        frame: np.ndarray,
+        query_id: str = "camera_frame",
+    ) -> dict[str, Any]:
+        """Localize one already-captured BGR frame without disk I/O."""
+        query_bgr = read_image(frame, (self.width, self.height))
+        return self._localize_image(query_bgr, query_id)
+
+    def _localize_image(
+        self,
+        query_bgr: np.ndarray,
+        query_id: str,
+    ) -> dict[str, Any]:
+        started_at = time.perf_counter()
         query_keypoints_xy, query_descriptors = extract_orb(query_bgr, self.max_features)
 
         ranked: list[tuple[ReferenceFrame, list[cv2.DMatch]]] = []
@@ -321,7 +343,7 @@ class OrbKeyframeLocalizer:
         return {
             "schema_version": 1,
             "method": "orb_keyframe_pnp",
-            "query_image": str(query_image),
+            "query_image": query_id,
             "status": status,
             "query_keypoint_count": int(len(query_keypoints_xy)),
             "reference_count": len(self.references),
@@ -331,6 +353,15 @@ class OrbKeyframeLocalizer:
             "timestamp_unix": time.time(),
             "coordinate_note": "position_xyz is in LingBot reconstruction coordinates; x_m/y_m publish uses x/z for demo navigation.",
         }
+
+
+class OrbRelocalizer(OrbKeyframeLocalizer):
+    """Streaming-oriented name for the reusable ORB relocalizer.
+
+    The implementation inherits the existing batch behavior and adds
+    ``localize_frame`` for camera frames. Mapping descriptors and world points
+    are still loaded only once during initialization.
+    """
 
 
 def result_to_pose(result: dict[str, Any], min_confidence: float) -> PoseSample:
@@ -416,3 +447,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
