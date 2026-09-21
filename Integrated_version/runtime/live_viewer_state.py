@@ -12,4 +12,4 @@ class LiveViewerState:
         self.map_manager.publish_pose(position_xyz, yaw_deg, confidence=confidence, status=localization_status)
         if path_xz is not None:
             self.map_manager.publish_path(path_xz)
-        self.map_manager.publish_status(mode=mode, localization_status=localization_status, viewer_pointcloud="live_points.json", viewer_pose="live_pose.json", viewer_path="live_path.json")
+        self.map_manager.publish_status(mode=mode, localization_status=localization_status, viewer_pointcloud="live_points.json" if self.map_manager.publish_json_points else "live_points.npz", viewer_pose="live_pose.json", viewer_path="live_path.json")
