@@ -26,6 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-points-per-window", type=int, default=100000)
     parser.add_argument("--resource-sample-every", type=int, default=1, help="Record resource metrics every N map updates")
     parser.add_argument("--benchmark-label", default="default")
+    parser.add_argument("--resource-sample-every", type=int, default=1, help="Record resource metrics every N map updates")
+    parser.add_argument("--benchmark-label", default="default")
     return parser.parse_args()
 
 
@@ -69,6 +71,9 @@ def main() -> int:
             "accepted": accepted,
             "latency_ms": round((time.perf_counter() - update_started) * 1000.0, 3),
         }
+        latency_samples.append(record["latency_ms"])
+        if result.map_version % args.resource_sample_every == 0:
+            record.update({"rss_mb": rss_mb(), "output_bytes": output_bytes(), "voxel_count": result.fused_points})
         latency_samples.append(record["latency_ms"])
         if result.map_version % args.resource_sample_every == 0:
             record.update({"rss_mb": rss_mb(), "output_bytes": output_bytes(), "voxel_count": result.fused_points})
