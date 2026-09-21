@@ -15,7 +15,7 @@
 - runtime/live_viewer_state.py：發布 Viewer 所需的 pose、path、status。
 - tests/test_live_mapping_architecture.py：測試版本管理、失敗更新保護與狀態門檻。
 
-既有 realtime_navigation.py、ORB、A*、Pure Pursuit 暫時保留，不直接改寫既有 RTSP 流程。
+既有 realtime_navigation.py 已接入 LiveMapManager 與 LiveViewerState；ORB、A*、Pure Pursuit 流程仍保留，且不會改寫正式研究輸出。
 
 ## 狀態流程
 
@@ -65,9 +65,25 @@ LiveMapManager 會在指定輸出資料夾產生：
 
 目前 RTSP 測試曾出現 inlier_count=0，因此這個架構雛形不能宣稱定位已驗證。實際 GPU、RTSP 長時間執行、局部點雲產生器與 Viewer 串接，必須在使用者的 RTX 3090 主機另行測試，目前為 NOT VERIFIED。
 
+## 目前 runtime 整合方式
+
+`realtime_navigation.py` 新增 `--live-map-dir`，預設輸出到 `outputs/runtime/live_navigation`。每一個成功讀取的 camera frame 都會發布目前 pose、confidence、localization status、runtime mode 與導航路徑。
+
+範例：
+
+    PYTHONPATH=Integrated_version python Integrated_version/runtime/realtime_navigation.py \\
+      --mapping-dir outputs/scenes/scene_20260818/mapping \\
+      --map-dir outputs/maps/20260818_navigation_rebuilt \\
+      --goal-x 1.0 --goal-y 1.0 \\
+      --url rtsp://CAMERA_IP:8554/live \\
+      --max-frames 30 \\
+      --live-map-dir outputs/runtime/live_navigation
+
+這個整合目前能讓 Viewer 讀取即時 pose/status/path，但尚未將 camera frame 自動轉換成局部 3D 點雲；因此它是 Level 2 的 runtime data-flow 雛形，不是完整 online mapping。
+
 ## 下一階段整合順序
 
-1. 將探索階段產生的局部點雲接到 publish_map_update()。
+1. 將探索階段產生的局部點雲接到 publish_map_update()，並在背景 worker 執行。
 2. 將 ORB/LightGlue pose 接到 LiveViewerState.update()。
 3. 將 map_version 與導航 grid 綁定，地圖更新後才低頻率重新規劃。
 4. 再將 realtime_navigation.py 接入 state machine。
