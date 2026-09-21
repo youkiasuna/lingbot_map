@@ -41,7 +41,8 @@ python Integrated_version/experiments/run_live_mapping_replay.py \
   --output-dir outputs/runtime/live_mapping_replay_test \
   --window-size 10 \
   --process-every 5 \
-  --max-frames 43
+  --max-frames 43 \\
+  --benchmark-label baseline
 ```
 
 若 `predictions.npz` 位於其他 mapping archive，請使用實際路徑。必須確保它與對應的 preprocessed images、world_points、frame_paths 來自同一次 mapping run。
@@ -52,6 +53,47 @@ python Integrated_version/experiments/run_live_mapping_replay.py \
 cat outputs/runtime/live_mapping_replay_test/replay_summary.json
 cat outputs/runtime/live_mapping_replay_test/live_map.json
 ```
+
+## Benchmark 與資料累積監測
+
+runner 現在會記錄：
+
+- `latency_mean_ms`
+- `latency_p50_ms`
+- `latency_p95_ms`
+- `peak_rss_mb`
+- `final_output_bytes`
+- `final_voxel_count`
+- 每次 update 的 `rss_mb`、`output_bytes`、`voxel_count`
+
+可執行長一點的 replay：
+
+```bash
+rm -rf outputs/runtime/live_mapping_benchmark
+PYTHONPATH=Integrated_version \\
+python Integrated_version/experiments/run_live_mapping_replay.py \\
+  --mapping-package outputs/scenes/scene_20260818/mapping/predictions.npz \\
+  --output-dir outputs/runtime/live_mapping_benchmark \\
+  --window-size 10 \\
+  --process-every 1 \\
+  --max-frames 43 \\
+  --benchmark-label stress_process_every_1
+```
+
+查看 benchmark：
+
+```bash
+python -m json.tool outputs/runtime/live_mapping_benchmark/replay_summary.json
+```
+
+判斷方式：
+
+- `peak_rss_mb` 長時間近似穩定：沒有明顯 RAM 累積證據。
+- `final_output_bytes` 只包含固定輸出檔案：沒有逐 update 檔案堆積。
+- `final_voxel_count` 不超過 `--max-points`：voxel map 有上限。
+- `latency_p95_ms` 持續上升：地圖融合或序列化成本正在惡化。
+
+這些是資源監測指標，不等同於已完成 RTSP 或 GPU online inference。
 
 ## 觀察指標
 
