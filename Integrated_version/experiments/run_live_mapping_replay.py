@@ -11,11 +11,16 @@ import time
 from runtime.incremental_map_fusion import IncrementalVoxelMap
 from runtime.live_map_manager import LiveMapManager
 from runtime.local_pointcloud_backend import PredictionNpzBackend
+from runtime.lingbot_map_backend import LingBotMapBackend, LingBotMapBackendConfig
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mapping-package", type=Path, required=True, help="Existing predictions.npz")
+    parser.add_argument("--mapping-package", type=Path, help="Existing predictions.npz for the prediction backend")
+    parser.add_argument("--backend", choices=("prediction", "lingbot"), default="prediction")
+    parser.add_argument("--source-dir", type=Path, help="Input image directory for the LingBot-MAP backend")
+    parser.add_argument("--model-path", type=Path, help="LingBot-MAP model checkpoint")
+    parser.add_argument("--lingbot-root", type=Path, default=Path("lingbot-map-main"))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--window-size", type=int, default=10)
     parser.add_argument("--process-every", type=int, default=5)
@@ -25,6 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-points-per-window", type=int, default=100000)
     parser.add_argument("--resource-sample-every", type=int, default=1, help="Record resource metrics every N map updates")
     parser.add_argument("--benchmark-label", default="default")
+    parser.add_argument("--max-windows", type=int, default=0)
     return parser.parse_args()
 
 
@@ -32,7 +38,20 @@ def main() -> int:
     args = parse_args()
     if args.resource_sample_every <= 0:
         raise SystemExit("--resource-sample-every must be positive")
-    backend = PredictionNpzBackend(args.mapping_package, max_points_per_window=args.max_points_per_window)
+    if args.backend == "prediction":
+        if args.mapping_package is None:
+            raise SystemExit("--mapping-package is required for --backend prediction")
+        backend = PredictionNpzBackend(args.mapping_package, max_points_per_window=args.max_points_per_window)
+    else:
+        if args.source_dir is None or args.model_path is None:
+            raise SystemExit("--source-dir and --model-path are required for --backend lingbot")
+        backend = LingBotMapBackend(LingBotMapBackendConfig(
+            source_dir=args.source_dir,
+            model_path=args.model_path,
+            lingbot_root=args.lingbot_root,
+            output_root=args.output_dir / "lingbot_windows",
+            max_points_per_window=args.max_points_per_window,
+        ))
     fusion = IncrementalVoxelMap(voxel_size_m=args.voxel_size_m, max_points=args.max_points)
     manager = LiveMapManager(args.output_dir, max_points=args.max_points)
     records = []
@@ -49,6 +68,7 @@ def main() -> int:
         window_size=args.window_size,
         process_every=args.process_every,
         max_frames=args.max_frames,
+        max_windows=args.max_windows,
     ):
         update_started = time.perf_counter()
         result = fusion.update(local_result.points_xyz)
@@ -81,8 +101,8 @@ def main() -> int:
 
     summary = {
         "schema_version": 1,
-        "source_package": str(args.mapping_package.resolve()),
-        "backend": "prediction_npz_replay",
+        "source_package": str(args.mapping_package.resolve()) if args.mapping_package else None,
+        "backend": args.backend,
         "benchmark_label": args.benchmark_label,
         "window_size": args.window_size,
         "process_every": args.process_every,
