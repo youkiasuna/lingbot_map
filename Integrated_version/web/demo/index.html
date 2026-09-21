@@ -1,8 +1,29 @@
 <!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LingBot-MAP Demo</title>
 <style>:root{color-scheme:light;--bg:#f3f5f6;--panel:#fff;--text:#172026;--muted:#65717a;--line:#ccd5db;--accent:#087f8c;--danger:#b33a3a;--path:#e5a600}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}.app{min-height:100vh}header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--line)}h1{font-size:18px;margin:0 0 4px}header span{font-size:13px;color:var(--muted)}.actions{display:flex;gap:8px}button,select{height:36px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--text);font:inherit;padding:0 12px}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}button:hover:not(:disabled){border-color:var(--accent)}#stopBtn{color:var(--danger)}.layout{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;padding:16px}#map{width:100%;height:calc(100vh - 92px);min-height:420px;background:#d6dde1;border:1px solid var(--line);border-radius:8px;cursor:crosshair}.panel{display:grid;align-content:start;gap:12px;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:8px}.panel label{display:grid;gap:6px;color:var(--muted);font-size:13px}.panel div{display:grid;gap:3px;padding-top:10px;border-top:1px solid var(--line)}.panel div span,.panel p{font-size:12px;color:var(--muted)}.panel strong{font-size:14px;overflow-wrap:anywhere}.panel p{line-height:1.5}@media(max-width:820px){header{display:grid}.layout{grid-template-columns:1fr}#map{height:58vh;min-height:320px}}</style></head>
-<body><main class="app"><header><div><h1>LingBot-MAP Robot Demo</h1><span id="state">Loading</span></div><div class="actions"><button id="mapping">載入地圖</button><button onclick="window.open('/live-3d','_blank')">即時 3D 地圖</button><button onclick="window.open('/3d-viewer','_blank')">開啟 3D 地圖</button><button onclick="window.open('/3d-models','_blank')">所有 3D 模型</button><button onclick="window.open('/3d-classified','_blank')">分類 3D 地圖</button><button id="stop">停止</button></div></header>
-<section class="panel" style="margin:16px 16px 0;display:grid;gap:10px"><strong>手機即時建模</strong><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="liveUrl" style="flex:1;min-width:260px;height:36px;padding:0 10px;border:1px solid var(--line);border-radius:6px" value="rtsp://192.168.50.82:8554/live" placeholder="rtsp://手機IP:8554/live"><button id="liveConnect">連線手機</button><button id="liveStart" disabled>開始掃描建模</button><button id="liveStop" disabled>停止</button><button id="liveReset">重置目前Demo</button></div><div><span id="liveState">尚未啟動</span> <span id="liveStats"></span></div></section><section class="layout"><canvas id="map" width="960" height="640"></canvas><aside class="panel"><label>Query 影像<select id="query"></select></label><button id="localize">執行視覺定位</button><div><span>Pose</span><strong id="pose">尚未定位</strong></div><div><span>Confidence</span><strong id="confidence">-</strong></div><div><span>目標</span><strong id="goal">點擊地圖</strong></div><div><span>路徑</span><strong id="path">尚未規劃</strong></div><div><span>車體</span><strong id="robot">SIMULATOR_READY</strong></div><button id="plan" disabled>規劃路徑</button><button id="start" disabled>開始模擬導航</button><p>目前為 simulation mode。確認定位、路徑和數據後，再接 ESP32。
+<body><main class="app"><header><div><h1>LingBot-MAP Robot Demo</h1><span id="state">Loading</span></div><div class="actions"><button id="mapping">載入地圖</button><button onclick="window.open('/live-mesh','_blank')">即時 TSDF Mesh</button><button onclick="window.open('/live-3d','_blank')">即時點雲</button><button onclick="window.open('/3d-viewer','_blank')">開啟 3D 地圖</button><button onclick="window.open('/3d-models','_blank')">所有 3D 模型</button><button id="stop">停止</button></div></header>
+<section class="panel" style="margin:16px 16px 0;display:grid;gap:10px"><strong>手機即時建模</strong><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="liveUrl" style="flex:1;min-width:260px;height:36px;padding:0 10px;border:1px solid var(--line);border-radius:6px" value="rtsp://192.168.50.82:8554/live" placeholder="rtsp://手機IP:8554/live"><button id="liveConnect">連線手機</button><button id="liveStart" disabled>開始掃描建模</button><button id="liveStop" disabled>停止</button><button id="liveReset">重置目前Demo</button></div><div><span id="liveState">尚未啟動</span> <span id="liveStats"></span></div></section><section class="panel" id="manualPanel" style="margin:0 16px 16px;display:grid;gap:10px;grid-template-columns:minmax(0,320px) 1fr">
+  <div style="display:grid;gap:8px;align-content:start">
+    <strong>手動控制</strong>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="robotIp" style="width:130px;height:32px;padding:0 8px;border:1px solid var(--line);border-radius:6px" value="192.168.4.1" placeholder="車體 IP">
+      <input id="robotPort" style="width:70px;height:32px;padding:0 8px;border:1px solid var(--line);border-radius:6px" value="8888" placeholder="Port">
+      <button id="robotApply">套用</button>
+      <span id="robotStatus" style="font-size:12px;color:var(--muted)">尚未設定</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,48px);gap:6px">
+      <div></div><button class="mv" data-dir="forward">▲</button><div></div>
+      <button class="mv" data-dir="left">◀</button><button class="mv" data-dir="stop" style="color:var(--danger)">■</button><button class="mv" data-dir="right">▶</button>
+      <div></div><button class="mv" data-dir="backward">▼</button><div></div>
+    </div>
+    <span style="font-size:12px;color:var(--muted)">方向鍵 / WASD 控制，空白鍵停止。按住移動、放開停止。</span>
+  </div>
+  <div style="background:#000;border-radius:8px;overflow:hidden;min-height:200px;display:flex;align-items:center;justify-content:center">
+    <img id="camView" style="width:100%;height:100%;object-fit:contain;display:none">
+    <span id="camPlaceholder" style="color:#8aa;font-size:13px">尚未連線手機（見上方「連線手機」）</span>
+  </div>
+</section>
+<section class="layout"><canvas id="map" width="960" height="640"></canvas><aside class="panel"><label>Query 影像<select id="query"></select></label><button id="localize">執行視覺定位</button><div><span>Pose</span><strong id="pose">尚未定位</strong></div><div><span>Confidence</span><strong id="confidence">-</strong></div><div><span>目標</span><strong id="goal">點擊地圖</strong></div><div><span>路徑</span><strong id="path">尚未規劃</strong></div><div><span>車體</span><strong id="robot">SIMULATOR_READY</strong></div><button id="plan" disabled>規劃路徑</button><button id="start" disabled>開始模擬導航</button><p>目前為 simulation mode。確認定位、路徑和數據後，再接 ESP32。
 <p>3D 檢視：開啟「開啟 3D 地圖」可檢查點雲高度與重建雜訊；導航仍使用由 3D 幾何分析產生的 2D 可通行地圖。</p></aside></section></main>
 <script>
 const liveUrl=document.getElementById("liveUrl"),liveConnect=document.getElementById("liveConnect"),liveStart=document.getElementById("liveStart"),liveStop=document.getElementById("liveStop"),liveReset=document.getElementById("liveReset"),liveState=document.getElementById("liveState"),liveStats=document.getElementById("liveStats"),c=document.getElementById("map"),x=c.getContext("2d"),q=document.getElementById("query"),st=document.getElementById("state"),pe=document.getElementById("pose"),ce=document.getElementById("confidence"),ge=document.getElementById("goal"),pa=document.getElementById("path"),ro=document.getElementById("robot"),m={map:null,img:null,state:null,goal:null,v:{s:1,ox:0,oy:0}};
@@ -17,6 +38,63 @@ function activePath(){const p=m.state&&m.state.path;return p&&p.waypoints&&p.way
 function render(){if(!m.img)return;fit();x.clearRect(0,0,c.width,c.height);x.drawImage(m.img,m.v.ox,m.v.oy,m.img.width*m.v.s,m.img.height*m.v.s);const s=m.state||{},p=s.pose,path=activePath();if(path){x.strokeStyle="#e5a600";x.lineWidth=4;x.beginPath();path.waypoints.forEach((a,i)=>{const z=w2c(a.x_m,a.y_m);i?x.lineTo(z.x,z.y):x.moveTo(z.x,z.y)});x.stroke()}if(m.goal){const z=w2c(m.goal.x_m,m.goal.y_m);x.strokeStyle="#b33a3a";x.lineWidth=3;x.beginPath();x.moveTo(z.x-8,z.y-8);x.lineTo(z.x+8,z.y+8);x.moveTo(z.x+8,z.y-8);x.lineTo(z.x-8,z.y+8);x.stroke()}if(p){const z=w2c(p.x_m,p.y_m);x.fillStyle="#087f8c";x.beginPath();x.arc(z.x,z.y,9,0,Math.PI*2);x.fill()}}
 function refresh(){api("/api/state").then(a=>{m.state=a.state;const s=m.state,p=s.pose,l=s.localization||{},path=activePath();st.textContent=s.system_state||"READY";pe.textContent=p?p.x_m.toFixed(2)+", "+p.y_m.toFixed(2)+", "+Number(p.yaw_deg||0).toFixed(0)+"°":"尚未定位";ce.textContent=l.confidence==null?"-":Number(l.confidence).toFixed(3);ge.textContent=m.goal?m.goal.x_m.toFixed(2)+", "+m.goal.y_m.toFixed(2):"點擊地圖";pa.textContent=path?path.path_length_m.toFixed(2)+" m / "+path.waypoint_count+" 點":"尚未規劃";ro.textContent=s.navigation?s.navigation.state:(s.robot?s.robot.state:"SIMULATOR_READY");document.getElementById("start").disabled=!path||s.navigation&&s.navigation.state==="NAVIGATING";document.getElementById("plan").disabled=!m.goal;render()}).catch(e=>st.textContent=e.message)}
 liveConnect.onclick=()=>api("/api/live/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:liveUrl.value})}).then(refreshLive).catch(e=>liveState.textContent=e.message);liveStart.onclick=()=>api("/api/live/start",{method:"POST"}).then(refreshLive).catch(e=>liveState.textContent=e.message);liveStop.onclick=()=>api("/api/live/stop",{method:"POST"}).then(refreshLive).catch(e=>liveState.textContent=e.message);liveReset.onclick=()=>api("/api/live/reset",{method:"POST"}).then(refreshLive).catch(e=>liveState.textContent=e.message);liveUrl.oninput=()=>{liveStart.disabled=!liveUrl.value.trim()};document.getElementById("mapping").onclick=()=>api("/api/mapping/start",{method:"POST"}).then(refresh).catch(e=>st.textContent=e.message);document.getElementById("localize").onclick=()=>api("/api/localization/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q.value})}).then(refresh).catch(e=>st.textContent=e.message);document.getElementById("plan").onclick=()=>{if(!m.goal)return;pa.textContent="規劃中";api("/api/plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(m.goal)}).then(a=>{m.state=m.state||{};m.state.path=a.path;m.state.navigation=null;pa.textContent=a.path.path_length_m.toFixed(2)+" m / "+a.path.waypoint_count+" 點";document.getElementById("start").disabled=false;render();return refresh()}).catch(e=>{pa.textContent=e.message;st.textContent=e.message})};document.getElementById("start").onclick=()=>api("/api/navigation/start",{method:"POST"}).then(refresh).catch(e=>st.textContent=e.message);document.getElementById("stop").onclick=()=>api("/api/navigation/stop",{method:"POST"}).then(refresh).catch(e=>st.textContent=e.message);c.onclick=e=>{const g=c2w(e.clientX,e.clientY);if(g){m.goal=g;if(m.state)m.state.path=null;pa.textContent="尚未規劃";ge.textContent=m.goal.x_m.toFixed(2)+", "+m.goal.y_m.toFixed(2);document.getElementById("start").disabled=true;render()}};addEventListener("resize",render);Promise.all([api("/api/map"),api("/api/queries")]).then(a=>{m.map=a[0].map;q.innerHTML=a[1].queries.map(z=>"<option>"+z+"</option>").join("");return fetch("/map.pgm")}).then(r=>r.arrayBuffer()).then(b=>{m.img=pgm(new Uint8Array(b));refresh()}).catch(e=>st.textContent=e.message);refreshLive();setInterval(refresh,500);setInterval(refreshLive,1000);
+</script>
+<script>
+(function(){
+  const camView=document.getElementById('camView'), camPlaceholder=document.getElementById('camPlaceholder');
+  const robotIp=document.getElementById('robotIp'), robotPort=document.getElementById('robotPort');
+  const robotApply=document.getElementById('robotApply'), robotStatus=document.getElementById('robotStatus');
+
+  function tryShowCamera(){
+    // /video-proxy reuses whatever URL was entered in "連線手機" above; retried
+    // periodically since the phone may connect after this page already loaded.
+    const img=new Image();
+    img.onload=()=>{ camView.src='/video-proxy?ts='+Date.now(); camView.style.display='block'; camPlaceholder.style.display='none'; };
+    img.onerror=()=>{ camView.style.display='none'; camPlaceholder.style.display='block'; };
+    img.src='/video-proxy?probe='+Date.now();
+  }
+  setInterval(tryShowCamera,4000);
+  tryShowCamera();
+
+  async function api(u,o){const r=await fetch(u,o),p=await r.json();if(!r.ok)throw Error(p.message||r.statusText);return p}
+
+  robotApply.onclick=()=>{
+    robotStatus.textContent='設定中...';
+    api('/api/robot/configure',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ip:robotIp.value.trim(),port:Number(robotPort.value)})})
+      .then(a=>{robotStatus.textContent='車體：'+a.robot.ip+':'+a.robot.port})
+      .catch(e=>{robotStatus.textContent='錯誤：'+e.message});
+  };
+
+  let pressedDir=null;
+  function send(dir){
+    api('/api/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:dir})})
+      .then(()=>{robotStatus.textContent=dir})
+      .catch(e=>{robotStatus.textContent='錯誤：'+e.message});
+  }
+  document.querySelectorAll('.mv').forEach(btn=>{
+    const dir=btn.dataset.dir;
+    const press=(e)=>{e.preventDefault();send(dir);if(dir!=='stop')pressedDir=dir;};
+    const release=(e)=>{e.preventDefault();if(dir!=='stop'&&pressedDir===dir){send('stop');pressedDir=null;}};
+    btn.addEventListener('mousedown',press);btn.addEventListener('mouseup',release);btn.addEventListener('mouseleave',release);
+    btn.addEventListener('touchstart',press,{passive:false});btn.addEventListener('touchend',release,{passive:false});
+  });
+
+  const keyDir={KeyW:'forward',ArrowUp:'forward',KeyS:'backward',ArrowDown:'backward',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
+  const activeKeys=new Set();
+  window.addEventListener('keydown',(e)=>{
+    if(e.code==='Space'){e.preventDefault();send('stop');return;}
+    const dir=keyDir[e.code];
+    if(!dir||activeKeys.has(e.code))return;
+    activeKeys.add(e.code);send(dir);pressedDir=dir;
+  });
+  window.addEventListener('keyup',(e)=>{
+    const dir=keyDir[e.code];
+    if(!dir)return;
+    activeKeys.delete(e.code);
+    if(activeKeys.size===0){send('stop');pressedDir=null;}
+  });
+})();
 </script>
 <script>
 const storageBar=document.createElement('div');

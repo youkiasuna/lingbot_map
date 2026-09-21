@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="10">
+<title>Latest LingBot Point Cloud</title>
+<style>
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f6f7; color: #172026; font-family: system-ui, sans-serif; }
+main { width: min(560px, calc(100vw - 32px)); padding: 20px; background: #fff; border: 1px solid #ccd5db; border-radius: 8px; }
+h1 { margin: 0 0 8px; font-size: 20px; }
+p { margin: 8px 0; color: #5f6d76; line-height: 1.45; }
+a { color: #087f8c; }
+code { background: #eef2f4; padding: 2px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Waiting for point cloud</h1>
+  <p>Session: <code>tony_live_20260918_122009</code></p>
+  <p>The viewer will open automatically after the first 30-frame update finishes.</p>
+  <p><a id="viewer" href="outputs/sessions/tony_live_20260918_122009/online_replay/latest/online_replay_3d_top_viewer.html">Open viewer</a></p>
+</main>
+<script>
+const viewer = "outputs/sessions/tony_live_20260918_122009/online_replay/latest/online_replay_3d_top_viewer.html";
+async function checkViewer() {
+  try {
+    const response = await fetch(viewer, {cache: "no-store"});
+    if (response.ok) window.location.replace(viewer);
+  } catch (error) {}
+  setTimeout(checkViewer, 5000);
+}
+checkViewer();
+</script>
+</body>
+</html>

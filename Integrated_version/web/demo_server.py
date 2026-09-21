@@ -6,6 +6,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse, urlsplit
+from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
 INTEGRATED = ROOT / "Integrated_version"
@@ -15,6 +16,28 @@ from experiments.orb_keyframe_localizer import OrbKeyframeLocalizer, result_to_p
 from localization.localizer_interface import FilePosePublisher, PoseSample
 from planner.grid_navigation import load_grid_map, plan_path
 from experiments.demo_storage import new_session, save_session, discard_session
+
+ROBOT_COMMAND_MAP = {
+    "forward": "F",
+    "backward": "B",
+    "left": "L",
+    "right": "R",
+    "stop": "S",
+}
+
+
+def send_robot_command(ip: str, port: int, command: str) -> str:
+    """Send a single-letter motion command to the ESP32 car over TCP.
+
+    Mirrors car/car/pc_controller.py and car/car/web_controller.py so the
+    same firmware protocol (newline-terminated single letter) is reused
+    instead of inventing a new one.
+    """
+    payload = command.encode("utf-8") + b"\n"
+    with socket.create_connection((ip, port), timeout=2) as sock:
+        sock.sendall(payload)
+        return sock.recv(1024).decode("utf-8", errors="ignore").strip()
+
 
 class DemoHandler(BaseHTTPRequestHandler):
     map_dir: Path
@@ -29,6 +52,10 @@ class DemoHandler(BaseHTTPRequestHandler):
     live_url = ""
     live_process = None
     live_lock = threading.RLock()
+    robot_ip = "192.168.4.1"
+    robot_port = 8888
+    robot_lock = threading.RLock()
+    robot_last_error = None
     localizer = None
     lock = threading.RLock()
     stop_event = threading.Event()
@@ -90,8 +117,39 @@ class DemoHandler(BaseHTTPRequestHandler):
         payload["url"] = payload.get("url") or url
         payload["process_running"] = process_running
         payload["viewer_url"] = "/live-3d"
+        payload["mesh_viewer_url"] = "/live-mesh"
         return payload
 
+
+    def proxy_video(self):
+        cls = type(self)
+        with cls.live_lock:
+            url = cls.live_url
+        if not url or not url.startswith(("http://", "https://")):
+            self.send_json({"status": "error", "message": "尚未連線手機串流，或串流不是 http(s) MJPEG 網址。"}, HTTPStatus.NOT_FOUND)
+            return
+        request = Request(url, headers={
+            "User-Agent": "lingbot-map-demo/1.0",
+            "Accept": "multipart/x-mixed-replace,*/*",
+        })
+        try:
+            with urlopen(request, timeout=8) as upstream:
+                content_type = upstream.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=--frame")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                while True:
+                    chunk = upstream.read(64 * 1024)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except (OSError, TimeoutError) as exc:
+            try:
+                self.send_json({"status": "error", "message": f"無法讀取手機影像串流：{exc}"}, HTTPStatus.BAD_GATEWAY)
+            except OSError:
+                return
 
     def stop_live_process(cls):
         with cls.live_lock:
@@ -114,7 +172,7 @@ class DemoHandler(BaseHTTPRequestHandler):
         parsed = urlsplit(url)
         if not parsed.hostname:
             raise ValueError("手機串流 URL 缺少主機位址。")
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        port = parsed.port or (554 if parsed.scheme == "rtsp" else 443 if parsed.scheme == "https" else 80)
         try:
             with socket.create_connection((parsed.hostname, port), timeout=2):
                 pass
@@ -143,6 +201,8 @@ class DemoHandler(BaseHTTPRequestHandler):
             "--session-root", str(self.live_root), "--session-name", "current",
             "--fps", "5", "--batch-frames", "30", "--process-every", "30",
             "--max-frames", "0", "--camera-num-iterations", "1", "--use-sdpa",
+            "--with-tsdf-mesh", "--tsdf-frame-stride", "2",
+            "--with-mesh-navigation",
             "--managed-by-server",
         ]
         process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -191,9 +251,36 @@ class DemoHandler(BaseHTTPRequestHandler):
         if path == "/api/live/status":
             self.send_json({"status": "ok", "live": self.live_status()})
             return
+        if path == "/api/live/scene":
+            self.send_file(self.live_root / "current/live_scene.json", "application/json; charset=utf-8")
+            return
+        if path == "/api/live/mesh":
+            self.send_file(self.live_root / "current/live_mesh.json", "application/json; charset=utf-8")
+            return
+        if path == "/api/live/mesh.ply":
+            self.send_file(self.live_root / "current/mapping/latest/tsdf_mesh.ply", "application/octet-stream")
+            return
+        if path == "/api/live/nav-map":
+            self.send_file(self.live_root / "current/mesh_navigation/latest/map.json", "application/json; charset=utf-8")
+            return
+        if path == "/api/live/nav-map.pgm":
+            self.send_file(self.live_root / "current/mesh_navigation/latest/map.pgm", "application/octet-stream")
+            return
+        if path == "/video-proxy":
+            self.proxy_video()
+            return
+        if path == "/api/robot/status":
+            with self.robot_lock:
+                self.send_json({"status": "ok", "robot": {
+                    "ip": self.robot_ip, "port": self.robot_port,
+                    "last_error": self.robot_last_error,
+                }})
+            return
         if path == "/live-3d":
-            live_viewer = self.live_root / "current/online_replay/latest/online_replay_3d_top_viewer.html"
-            self.send_file(live_viewer, "text/html; charset=utf-8")
+            self.send_file(INTEGRATED / "web/demo/live_scene_viewer.html", "text/html; charset=utf-8")
+            return
+        if path == "/live-mesh":
+            self.send_file(INTEGRATED / "web/demo/live_mesh_viewer.html", "text/html; charset=utf-8")
             return
         if path == "/3d-classified":
             self.send_file(INTEGRATED / "web/demo/classified_viewer.html", "text/html; charset=utf-8")
@@ -260,6 +347,10 @@ class DemoHandler(BaseHTTPRequestHandler):
                 self.handle_live_stop()
             elif path == "/api/live/reset":
                 self.handle_live_reset()
+            elif path == "/api/move":
+                self.handle_move(body)
+            elif path == "/api/robot/configure":
+                self.handle_robot_configure(body)
             elif path == "/api/mapping/start":
                 self.handle_mapping()
             elif path == "/api/localization/run":
@@ -274,6 +365,40 @@ class DemoHandler(BaseHTTPRequestHandler):
                 self.send_json({"status": "error", "message": "Not found"}, HTTPStatus.NOT_FOUND)
         except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as exc:
             self.send_json({"status": "error", "message": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+    def handle_move(self, body):
+        """Manual driving: forward the direction straight to the ESP32 over TCP.
+
+        This does not touch localization, planning, or navigation state —
+        it is the same "send one letter, get one letter back" contract
+        car/car/pc_controller.py already uses, just reachable from the
+        browser through this server instead of a standalone script.
+        """
+        direction = str(body.get("command", ""))
+        letter = ROBOT_COMMAND_MAP.get(direction)
+        if letter is None:
+            raise ValueError(f"Unknown command: {direction!r}. Use one of {sorted(ROBOT_COMMAND_MAP)}.")
+        cls = type(self)
+        with cls.robot_lock:
+            ip, port = cls.robot_ip, cls.robot_port
+        try:
+            response = send_robot_command(ip, port, letter)
+            cls.robot_last_error = None
+        except OSError as exc:
+            cls.robot_last_error = str(exc)
+            raise ValueError(f"無法連線車體 {ip}:{port}：{exc}") from exc
+        self.send_json({"status": "ok", "command": direction, "letter": letter, "robot_response": response})
+
+    def handle_robot_configure(self, body):
+        """Let the browser point at a different ESP32 without restarting the server."""
+        cls = type(self)
+        with cls.robot_lock:
+            if "ip" in body:
+                cls.robot_ip = str(body["ip"])
+            if "port" in body:
+                cls.robot_port = int(body["port"])
+            ip, port = cls.robot_ip, cls.robot_port
+        self.send_json({"status": "ok", "robot": {"ip": ip, "port": port}})
 
     def handle_mapping(self):
         needed = [self.map_dir / "map.pgm", self.map_dir / "map.json", self.scene_dir / "mapping/predictions.npz"]
@@ -403,6 +528,8 @@ def main():
     parser.add_argument("--pose-offset-x", type=float, default=-1.53, help="Demo translation from LingBot X/Z to navigation-map X/Y.")
     parser.add_argument("--pose-offset-y", type=float, default=0.0, help="Demo translation from LingBot X/Z to navigation-map X/Y.")
     parser.add_argument("--snap-localization-to-free", action="store_true", help="Simulation only: snap localized pose to nearest traversable map cell.")
+    parser.add_argument("--robot-ip", default="192.168.4.1", help="ESP32 car IP address for manual driving (car/car/esp32_motor_control.ino).")
+    parser.add_argument("--robot-port", type=int, default=8888, help="ESP32 car TCP port for manual driving commands.")
     args = parser.parse_args()
     DemoHandler.source_map_dir, DemoHandler.scene_dir = args.map_dir.resolve(), args.scene_dir.resolve()
     session = new_session("web_demo")
@@ -417,6 +544,8 @@ def main():
     DemoHandler.pose_offset_x = args.pose_offset_x
     DemoHandler.pose_offset_y = args.pose_offset_y
     DemoHandler.snap_localization_to_free = args.snap_localization_to_free
+    DemoHandler.robot_ip = args.robot_ip
+    DemoHandler.robot_port = args.robot_port
     server = ThreadingHTTPServer((args.host, args.port), DemoHandler)
     print("Demo UI: http://%s:%s" % (args.host, args.port), flush=True)
     print(f"Temporary results: {session}", flush=True)

@@ -26,6 +26,34 @@
 
     conda run -n lingbot-map python Integrated_version/map/build_rebuilt_navigation_map.py --ply outputs/scenes/scene_20260818/mapping/rebuilt_colored_map.ply --output-dir outputs/maps/20260818_navigation_rebuilt_voxel --vertical-axis=-y --resolution-m 0.05 --voxel-size-m 0.04 --voxel-min-points 2 --floor-band-m 0.10 --floor-min-points-per-cell 2 --obstacle-min-height-m 0.18 --obstacle-min-points-per-cell 4 --min-obstacle-component-cells 4 --robot-radius-m 0.08
 
+## TSDF 即時建模
+
+第一次使用 TSDF mesh 請確認 Open3D 已安裝：
+
+    conda run -n lingbot-map python -m pip install open3d
+
+啟動整合前端：
+
+    conda run -n lingbot-map python Integrated_version/web/demo_server.py --port 18115 --map-dir outputs/maps/20260818_navigation_rebuilt_voxel --snap-localization-to-free
+
+前端流程：
+
+1. 輸入手機 RTSP 或 HTTP 串流 URL
+2. 按「連線手機」
+3. 按「開始掃描建模」
+4. 開啟「即時 TSDF Mesh」查看三角網格
+5. 必要時開啟「即時點雲」查看原始 RGB 點雲備援
+
+即時輸出位置在暫存 session 內：
+
+    live/current/mapping/latest/tsdf_mesh.ply
+    live/current/live_mesh.json
+    live/current/live_scene.json
+    live/current/mesh_navigation/latest/map.pgm
+    live/current/mesh_navigation/latest/map.json
+
+目前導航圖會從 TSDF mesh 的平坦面片重新建立，輸出仍維持既有 A-star 可讀的 map.pgm / map.json 格式。
+
 ## Demo 操作順序
 
 1. 按「載入地圖」
