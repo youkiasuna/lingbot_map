@@ -62,8 +62,9 @@ runner 現在會記錄：
 - `latency_p50_ms`
 - `latency_p95_ms`
 - `peak_rss_mb`
-- `final_output_bytes`
+- `final_output_bytes`（目前主要為 binary `live_points.npz` 與 metadata）
 - `final_voxel_count`
+- `pointcloud_file`
 - 每次 update 的 `rss_mb`、`output_bytes`、`voxel_count`
 
 可執行長一點的 replay：
@@ -93,7 +94,7 @@ python -m json.tool outputs/runtime/live_mapping_benchmark/replay_summary.json
 - `final_voxel_count` 不超過 `--max-points`：voxel map 有上限。
 - `latency_p95_ms` 持續上升：地圖融合或序列化成本正在惡化。
 
-這些是資源監測指標，不等同於已完成 RTSP 或 GPU online inference。
+目前預設使用壓縮 binary `live_points.npz`，避免每次將完整點雲序列化成 JSON；若舊 Viewer 仍需要 JSON，可建立 `LiveMapManager(..., publish_json_points=True)` 暫時輸出 `live_points.json`。這些是資源監測指標，不等同於已完成 RTSP 或 GPU online inference。
 
 ## 觀察指標
 
