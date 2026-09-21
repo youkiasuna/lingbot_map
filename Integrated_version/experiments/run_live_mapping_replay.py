@@ -3,7 +3,10 @@
 from __future__ import annotations
 import argparse
 import json
+import os
 from pathlib import Path
+import resource
+import statistics
 import time
 
 from runtime.incremental_map_fusion import IncrementalVoxelMap
@@ -21,16 +24,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--voxel-size-m", type=float, default=0.03)
     parser.add_argument("--max-points", type=int, default=250000)
     parser.add_argument("--max-points-per-window", type=int, default=100000)
+    parser.add_argument("--resource-sample-every", type=int, default=1, help="Record resource metrics every N map updates")
+    parser.add_argument("--benchmark-label", default="default")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if args.resource_sample_every <= 0:
+        raise SystemExit("--resource-sample-every must be positive")
     replay = PredictionPointCloudReplay(args.mapping_package, max_points_per_window=args.max_points_per_window)
     fusion = IncrementalVoxelMap(voxel_size_m=args.voxel_size_m, max_points=args.max_points)
     manager = LiveMapManager(args.output_dir, max_points=args.max_points)
     records = []
     started = time.perf_counter()
+    latency_samples = []
+
+    def output_bytes() -> int:
+        return sum(path.stat().st_size for path in args.output_dir.rglob("*") if path.is_file()) if args.output_dir.exists() else 0
+
+    def rss_mb() -> float:
+        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 3)
 
     for window in replay.windows(
         window_size=args.window_size,
@@ -55,16 +69,26 @@ def main() -> int:
             "accepted": accepted,
             "latency_ms": round((time.perf_counter() - update_started) * 1000.0, 3),
         }
+        latency_samples.append(record["latency_ms"])
+        if result.map_version % args.resource_sample_every == 0:
+            record.update({"rss_mb": rss_mb(), "output_bytes": output_bytes(), "voxel_count": result.fused_points})
         records.append(record)
         print(json.dumps(record), flush=True)
 
     summary = {
         "schema_version": 1,
         "source_package": str(args.mapping_package.resolve()),
+        "benchmark_label": args.benchmark_label,
         "window_size": args.window_size,
         "process_every": args.process_every,
         "map_updates": len(records),
         "total_latency_ms": round((time.perf_counter() - started) * 1000.0, 3),
+        "latency_mean_ms": round(statistics.fmean(latency_samples), 3) if latency_samples else None,
+        "latency_p50_ms": round(statistics.median(latency_samples), 3) if latency_samples else None,
+        "latency_p95_ms": round(sorted(latency_samples)[max(0, int(len(latency_samples) * 0.95) - 1)], 3) if latency_samples else None,
+        "peak_rss_mb": rss_mb(),
+        "final_output_bytes": output_bytes(),
+        "final_voxel_count": fusion.points_xyz.shape[0],
         "records": records,
         "note": "Replay uses existing world_points from predictions.npz; it is not online RGB depth inference.",
     }
