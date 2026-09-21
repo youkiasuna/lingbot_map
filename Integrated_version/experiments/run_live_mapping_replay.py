@@ -10,7 +10,7 @@ import time
 
 from runtime.incremental_map_fusion import IncrementalVoxelMap
 from runtime.live_map_manager import LiveMapManager
-from runtime.local_pointcloud_replay import PredictionPointCloudReplay
+from runtime.local_pointcloud_backend import PredictionNpzBackend
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,7 +32,7 @@ def main() -> int:
     args = parse_args()
     if args.resource_sample_every <= 0:
         raise SystemExit("--resource-sample-every must be positive")
-    replay = PredictionPointCloudReplay(args.mapping_package, max_points_per_window=args.max_points_per_window)
+    backend = PredictionNpzBackend(args.mapping_package, max_points_per_window=args.max_points_per_window)
     fusion = IncrementalVoxelMap(voxel_size_m=args.voxel_size_m, max_points=args.max_points)
     manager = LiveMapManager(args.output_dir, max_points=args.max_points)
     records = []
@@ -45,24 +45,26 @@ def main() -> int:
     def rss_mb() -> float:
         return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 3)
 
-    for window in replay.windows(
+    for local_result in backend.iter_generate(
         window_size=args.window_size,
         process_every=args.process_every,
         max_frames=args.max_frames,
     ):
         update_started = time.perf_counter()
-        result = fusion.update(window.points_xyz)
+        result = fusion.update(local_result.points_xyz)
         accepted = manager.publish_map_update(
             fusion.points_xyz,
-            frame_count=window.end_frame + 1,
-            keyframe_count=window.end_frame - window.start_frame + 1,
+            frame_count=local_result.end_frame + 1,
+            keyframe_count=local_result.end_frame - local_result.start_frame + 1,
             tracked_ratio=1.0,
             navigable=True,
         )
         record = {
             "map_version": result.map_version,
-            "start_frame": window.start_frame,
-            "end_frame": window.end_frame,
+            "backend": local_result.backend,
+            "start_frame": local_result.start_frame,
+            "end_frame": local_result.end_frame,
+            "backend_latency_ms": local_result.latency_ms,
             "input_points": result.input_points,
             "fused_points": result.fused_points,
             "accepted": accepted,
@@ -80,6 +82,7 @@ def main() -> int:
     summary = {
         "schema_version": 1,
         "source_package": str(args.mapping_package.resolve()),
+        "backend": "prediction_npz_replay",
         "benchmark_label": args.benchmark_label,
         "window_size": args.window_size,
         "process_every": args.process_every,
