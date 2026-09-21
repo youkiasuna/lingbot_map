@@ -23,6 +23,7 @@ class LocalPointCloudResult:
     yaw_deg: float | None
     confidence: float
     latency_ms: float
+    timings_ms: dict[str, float]
     source: str
 
 
@@ -67,5 +68,6 @@ class PredictionNpzBackend:
             yaw_deg=None,
             confidence=1.0,
             latency_ms=round(latency_ms, 3),
+            timings_ms={"backend_generation": round(latency_ms, 3)},
             source=str(self.package_path),
         )
