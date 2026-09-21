@@ -11,6 +11,7 @@ from typing import Iterator
 import numpy as np
 
 from runtime.local_pointcloud_backend import LocalPointCloudResult
+from runtime.lingbot_map_session import LingBotMapSession, LingBotMapSessionConfig
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class LingBotMapBackendConfig:
     camera_num_iterations: int = 1
     use_sdpa: bool = True
     keep_window_packages: bool = True
+    persistent_session: bool = False
 
 
 class LingBotMapBackend:
@@ -37,6 +39,12 @@ class LingBotMapBackend:
 
     def __init__(self, config: LingBotMapBackendConfig) -> None:
         self.config = config
+        self.session = LingBotMapSession(LingBotMapSessionConfig(
+            model_path=config.model_path,
+            lingbot_root=config.lingbot_root,
+            camera_num_iterations=config.camera_num_iterations,
+            use_sdpa=config.use_sdpa,
+        )) if config.persistent_session else None
         self.image_paths = sorted(
             path for path in config.source_dir.iterdir()
             if path.suffix.lower() in {".jpg", ".jpeg", ".png"}
@@ -76,15 +84,26 @@ class LingBotMapBackend:
                 package_dir = self.config.output_root / f"window_{start:06d}_{end - 1:06d}"
                 package_dir.mkdir(parents=True, exist_ok=True)
                 inference_started = time.perf_counter()
-                self._run_mapping(image_dir, package_dir)
-                timings["mapping_subprocess"] = round((time.perf_counter() - inference_started) * 1000.0, 3)
-                archive = package_dir / "predictions.npz"
-                load_started = time.perf_counter()
-                data = np.load(archive, allow_pickle=True)
-                points = np.asarray(data["world_points"], dtype=np.float32).reshape(-1, 3)
-                data.close()
-                timings["archive_load"] = round((time.perf_counter() - load_started) * 1000.0, 3)
-                points = points[np.isfinite(points).all(axis=1)]
+                if self.session is not None:
+                    session_result = self.session.infer_image_folder(image_dir, package_dir)
+                    points = session_result["points_xyz"]
+                    timings.update({
+                        "model_load": session_result["model_load_ms"],
+                        "inference": session_result["inference_ms"],
+                        "session_total": session_result["total_ms"],
+                    })
+                else:
+                    self._run_mapping(image_dir, package_dir)
+                    timings["mapping_subprocess"] = round((time.perf_counter() - inference_started) * 1000.0, 3)
+                    archive = package_dir / "predictions.npz"
+                    load_started = time.perf_counter()
+                    data = np.load(archive, allow_pickle=True)
+                    points = np.asarray(data["world_points"], dtype=np.float32).reshape(-1, 3)
+                    data.close()
+                    timings["archive_load"] = round((time.perf_counter() - load_started) * 1000.0, 3)
+                    points = points[np.isfinite(points).all(axis=1)]
+                timings["backend_total"] = round((time.perf_counter() - inference_started) * 1000.0, 3)
+                points = points[np.isfinite(points).all(axis=1)
                 if len(points) > self.config.max_points_per_window:
                     stride = max(1, len(points) // self.config.max_points_per_window)
                     points = points[::stride][:self.config.max_points_per_window]
