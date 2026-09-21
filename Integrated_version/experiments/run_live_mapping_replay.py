@@ -25,8 +25,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-points-per-window", type=int, default=100000)
     parser.add_argument("--resource-sample-every", type=int, default=1, help="Record resource metrics every N map updates")
     parser.add_argument("--benchmark-label", default="default")
-    parser.add_argument("--resource-sample-every", type=int, default=1, help="Record resource metrics every N map updates")
-    parser.add_argument("--benchmark-label", default="default")
     return parser.parse_args()
 
 
