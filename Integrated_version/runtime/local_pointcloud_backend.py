@@ -27,7 +27,7 @@ class LocalPointCloudResult:
 
 
 class LocalPointCloudBackend(Protocol):
-    def iter_generate(self, *, window_size: int, process_every: int, max_frames: int = 0) -> Iterator[LocalPointCloudResult]:
+    def iter_generate(self, *, window_size: int, process_every: int, max_frames: int = 0, max_windows: int = 0) -> Iterator[LocalPointCloudResult]:
         ...
 
 
@@ -44,16 +44,18 @@ class PredictionNpzBackend:
         )
 
     def iter_generate(self, *, window_size: int, process_every: int, max_frames: int = 0) -> Iterator[LocalPointCloudResult]:
-        for window in self.replay.windows(
+        for index, window in enumerate(self.replay.windows(
             window_size=window_size,
             process_every=process_every,
             max_frames=max_frames,
-        ):
+        )):
+            if max_windows > 0 and index >= max_windows:
+                break
             started = time.perf_counter()
             yield self._convert(window, (time.perf_counter() - started) * 1000.0)
 
     def generate(self, *, window_size: int, process_every: int, max_frames: int = 0) -> list[LocalPointCloudResult]:
-        return list(self.iter_generate(window_size=window_size, process_every=process_every, max_frames=max_frames))
+        return list(self.iter_generate(window_size=window_size, process_every=process_every, max_frames=max_frames, max_windows=max_windows))
 
     def _convert(self, window: LocalWindow, latency_ms: float) -> LocalPointCloudResult:
         return LocalPointCloudResult(
