@@ -27,6 +27,10 @@ class NavigationManager:
         self.state = NavigationState()
         self._waypoints: list[tuple[float, float]] = []
 
+    @property
+    def waypoints(self) -> list[tuple[float, float]]:
+        return list(self._waypoints)
+
     def set_path(self, waypoints: list[tuple[float, float]]) -> None:
         self._waypoints = list(waypoints)
         self.state.mode = "NAVIGATING" if self._waypoints else "IDLE"
