@@ -8,6 +8,8 @@ import tempfile
 import time
 from typing import Iterable, Sequence
 
+import numpy as np
+
 @dataclass(frozen=True)
 class CoordinateConvention:
     vertical_axis: str = "-y"
@@ -25,11 +27,12 @@ class MapQuality:
 class LiveMapManager:
     """Publish accepted live-map snapshots without destroying the last valid map."""
 
-    def __init__(self, output_dir: str | Path, *, convention: CoordinateConvention | None = None, max_points: int = 250_000) -> None:
+    def __init__(self, output_dir: str | Path, *, convention: CoordinateConvention | None = None, max_points: int = 250_000, publish_json_points: bool = False) -> None:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.convention = convention or CoordinateConvention()
         self.max_points = max_points
+        self.publish_json_points = publish_json_points
         self.map_version = self._read_version()
         self._status: dict = {}
 
@@ -48,7 +51,10 @@ class LiveMapManager:
             points = points[::step][:self.max_points]
         quality = MapQuality(int(frame_count), int(keyframe_count), len(points), float(tracked_ratio), bool(navigable))
         self.map_version += 1
-        self._write_json("live_points.json", {"map_version": self.map_version, "points_xyz": points})
+        points_array = np.asarray(points, dtype=np.float32)
+        self._write_npz("live_points.npz", map_version=self.map_version, points_xyz=points_array)
+        if self.publish_json_points:
+            self._write_json("live_points.json", {"map_version": self.map_version, "points_xyz": points})
         self._write_json("live_map.json", {
             "schema_version": 1,
             "map_version": self.map_version,
@@ -56,7 +62,7 @@ class LiveMapManager:
             "coordinate_convention": asdict(self.convention),
             "quality": asdict(quality),
         })
-        self._status.update({"map_ready": True, "map_version": self.map_version})
+        self._status.update({"map_ready": True, "map_version": self.map_version, "pointcloud_file": "live_points.json" if self.publish_json_points else "live_points.npz"})
         self.publish_status()
         return True
 
@@ -97,6 +103,19 @@ class LiveMapManager:
             return int(json.loads(path.read_text(encoding="utf-8")).get("map_version", 0))
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             return 0
+
+    def _write_npz(self, filename: str, **arrays: object) -> None:
+        destination = self.output_dir / filename
+        fd, temporary_name = tempfile.mkstemp(prefix=f".{filename}.", suffix=".npz", dir=self.output_dir)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                np.savez_compressed(handle, **arrays)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_name, destination)
+        finally:
+            if os.path.exists(temporary_name):
+                os.unlink(temporary_name)
 
     def _write_json(self, filename: str, payload: dict) -> None:
         destination = self.output_dir / filename
