@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resource-sample-every", type=int, default=1, help="Record resource metrics every N map updates")
     parser.add_argument("--benchmark-label", default="default")
     parser.add_argument("--max-windows", type=int, default=0)
+    parser.add_argument("--keep-window-packages", action="store_true", help="Keep per-window LingBot predictions.npz packages")
     return parser.parse_args()
 
 
@@ -51,6 +52,7 @@ def main() -> int:
             lingbot_root=args.lingbot_root,
             output_root=args.output_dir / "lingbot_windows",
             max_points_per_window=args.max_points_per_window,
+            keep_window_packages=args.keep_window_packages,
         ))
     fusion = IncrementalVoxelMap(voxel_size_m=args.voxel_size_m, max_points=args.max_points)
     manager = LiveMapManager(args.output_dir, max_points=args.max_points)
@@ -85,14 +87,12 @@ def main() -> int:
             "start_frame": local_result.start_frame,
             "end_frame": local_result.end_frame,
             "backend_latency_ms": local_result.latency_ms,
+            "backend_timings_ms": local_result.timings_ms,
             "input_points": result.input_points,
             "fused_points": result.fused_points,
             "accepted": accepted,
             "latency_ms": round((time.perf_counter() - update_started) * 1000.0, 3),
         }
-        latency_samples.append(record["latency_ms"])
-        if result.map_version % args.resource_sample_every == 0:
-            record.update({"rss_mb": rss_mb(), "output_bytes": output_bytes(), "voxel_count": result.fused_points})
         latency_samples.append(record["latency_ms"])
         if result.map_version % args.resource_sample_every == 0:
             record.update({"rss_mb": rss_mb(), "output_bytes": output_bytes(), "voxel_count": result.fused_points})
@@ -113,9 +113,13 @@ def main() -> int:
         "latency_p95_ms": round(sorted(latency_samples)[max(0, int(len(latency_samples) * 0.95) - 1)], 3) if latency_samples else None,
         "peak_rss_mb": rss_mb(),
         "final_output_bytes": output_bytes(),
-        "final_voxel_count": fusion.points_xyz.shape[0],
+        "final_voxel_count": int(fusion.points_xyz.shape[0]),
         "records": records,
-        "note": "Replay uses existing world_points from predictions.npz; it is not online RGB depth inference.",
+        "note": (
+            "Replay uses existing world_points from predictions.npz; it is not online RGB depth inference."
+            if args.backend == "prediction"
+            else "LingBot-MAP generated predictions.npz for selected windows; this is windowed offline inference, not streaming inference."
+        ),
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "replay_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
