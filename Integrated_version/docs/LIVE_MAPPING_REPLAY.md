@@ -119,4 +119,21 @@ python -m json.tool outputs/runtime/live_mapping_benchmark/replay_summary.json
 5. 將 map version 發布給 Viewer。
 
 目前 RTSP、手機影像、真正 online depth inference 與實車控制仍為 `NOT VERIFIED`。
+
+## LingBot-MAP profiling 與輸出清理
+
+`backend=lingbot` 的每筆 record 會額外記錄：
+
+- `backend_timings_ms.image_prepare`
+- `backend_timings_ms.mapping_subprocess`
+- `backend_timings_ms.archive_load`
+- `backend_timings_ms.point_extract`
+
+預設每個 window 完成後會清理內部 `lingbot_windows/window_*` package，只保留 live map 與 summary，避免長時間執行造成磁碟累積。若要保留完整 window package 供除錯，加入：
+
+```bash
+--keep-window-packages
+```
+
+`replay_summary.json` 會根據 backend 分別說明：`prediction` 使用既有 world points；`lingbot` 則代表 selected windows 重新產生 predictions.npz，但仍屬 windowed offline inference，不是 streaming inference。
 \n## LingBot-MAP backend 單一 window 測試\n\n這個測試會實際呼叫現有 `run_lingbot_mapping.py`，請先只執行一個 window：\n\n```bash\nPYTHONPATH=Integrated_version \\\npython Integrated_version/experiments/run_live_mapping_replay.py \\\n  --backend lingbot \\\n  --source-dir data/frames/20260818_frames \\\n  --model-path models/lingbot-map.pt \\\n  --lingbot-root lingbot-map-main \\\n  --output-dir outputs/runtime/live_mapping_lingbot_test \\\n  --window-size 10 \\\n  --process-every 10 \\\n  --max-frames 10 \\\n  --max-windows 1 \\\n  --benchmark-label lingbot_single_window\n```\n\n這會使用 GPU 與產生局部 mapping package；實際 inference latency、GPU memory 與輸出是否成功必須在 RTX 3090 主機測試，目前為 `NOT VERIFIED`。\n
