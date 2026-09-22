@@ -35,6 +35,7 @@ class LingBotMapSessionConfig:
     overlap_size: int = 16
     use_sdpa: bool = True
     offload_to_cpu: bool = True
+    write_archive: bool = False
 
 
 class LingBotMapSession:
@@ -121,21 +122,27 @@ class LingBotMapSession:
         else:
             images_for_post = images
         predictions, images_cpu = self.demo.postprocess(predictions, images_for_post)
-        archive_write_started = time.perf_counter()
-        archive, metadata = write_prediction_archive(
-            predictions,
-            frame_paths,
-            output_dir / "predictions.npz",
-            output_dir / "preprocessed",
-            self.demo._get_world_points,
-        )
-        archive_write_ms = round((time.perf_counter() - archive_write_started) * 1000.0, 3)
         point_extract_started = time.perf_counter()
-        with np.load(archive, allow_pickle=False) as archive_data:
-            points = np.asarray(archive_data["world_points"])
+        points_value = predictions.get("world_points")
+        if points_value is None:
+            points_value = self.demo._get_world_points(predictions)
+        points = np.asarray(points_value)
         points = points.reshape(-1, 3)
         points = points[np.isfinite(points).all(axis=1)]
         point_extract_ms = round((time.perf_counter() - point_extract_started) * 1000.0, 3)
+        archive = None
+        metadata = None
+        archive_write_ms = 0.0
+        if self.config.write_archive:
+            archive_write_started = time.perf_counter()
+            archive, metadata = write_prediction_archive(
+                predictions,
+                frame_paths,
+                output_dir / "predictions.npz",
+                output_dir / "preprocessed",
+                self.demo._get_world_points,
+            )
+            archive_write_ms = round((time.perf_counter() - archive_write_started) * 1000.0, 3)
         return {
             "points_xyz": points.astype(np.float32),
             "archive": archive,
