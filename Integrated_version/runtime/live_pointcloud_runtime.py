@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import threading
 import time
@@ -39,6 +40,15 @@ def parse_args() -> argparse.Namespace:
 
 def camera_source(value: str) -> int | str:
     return int(value) if value.isdigit() else value
+
+
+def write_live_frame(cv2, frame, output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    temporary = output_dir / ".live_frame.jpg.tmp"
+    destination = output_dir / "live_frame.jpg"
+    if not cv2.imwrite(str(temporary), frame):
+        raise OSError(f"failed to write {temporary}")
+    os.replace(temporary, destination)
 
 
 def open_capture(cv2, source: int | str, timeout_ms: int):
@@ -188,6 +198,7 @@ def main() -> int:
             if now < next_submit:
                 continue
             next_submit = now + 1.0 / args.fps
+            write_live_frame(cv2, frame, args.live_map_dir)
             worker.submit(FramePacket(submitted, frame, time.time()))
             submitted += 1
             live_manager.publish_status(
