@@ -32,6 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-windows", type=int, default=0)
     parser.add_argument("--keep-window-packages", action="store_true", help="Keep per-window LingBot predictions.npz packages")
     parser.add_argument("--persistent-worker", action="store_true", help="Keep one LingBot model session for all windows")
+    parser.add_argument("--save-window-archives", action="store_true", help="Keep full per-window predictions.npz archives in LingBot persistent mode")
     return parser.parse_args()
 
 
@@ -55,6 +56,7 @@ def main() -> int:
             max_points_per_window=args.max_points_per_window,
             keep_window_packages=args.keep_window_packages,
             persistent_session=args.persistent_worker,
+            save_window_archives=args.save_window_archives,
         ))
     fusion = IncrementalVoxelMap(voxel_size_m=args.voxel_size_m, max_points=args.max_points)
     manager = LiveMapManager(args.output_dir, max_points=args.max_points)
