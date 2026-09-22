@@ -11,7 +11,6 @@ import time
 from runtime.incremental_map_fusion import IncrementalVoxelMap
 from runtime.live_map_manager import LiveMapManager
 from runtime.local_pointcloud_backend import PredictionNpzBackend
-from runtime.lingbot_map_backend import LingBotMapBackend, LingBotMapBackendConfig
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,6 +44,7 @@ def main() -> int:
             raise SystemExit("--mapping-package is required for --backend prediction")
         backend = PredictionNpzBackend(args.mapping_package, max_points_per_window=args.max_points_per_window)
     else:
+        from runtime.lingbot_map_backend import LingBotMapBackend, LingBotMapBackendConfig
         if args.source_dir is None or args.model_path is None:
             raise SystemExit("--source-dir and --model-path are required for --backend lingbot")
         backend = LingBotMapBackend(LingBotMapBackendConfig(
