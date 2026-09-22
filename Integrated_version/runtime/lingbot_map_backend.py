@@ -103,7 +103,7 @@ class LingBotMapBackend:
                     timings["archive_load"] = round((time.perf_counter() - load_started) * 1000.0, 3)
                     points = points[np.isfinite(points).all(axis=1)]
                 timings["backend_total"] = round((time.perf_counter() - inference_started) * 1000.0, 3)
-                points = points[np.isfinite(points).all(axis=1)
+                points = points[np.isfinite(points).all(axis=1)]
                 if len(points) > self.config.max_points_per_window:
                     stride = max(1, len(points) // self.config.max_points_per_window)
                     points = points[::stride][:self.config.max_points_per_window]
