@@ -172,3 +172,13 @@ python Integrated_version/experiments/run_live_mapping_replay.py \\
 - `records[*].backend_timings_ms.backend_total`：該 window backend 總 latency。
 
 因此不能將每筆 window 的 `model_load_ms` 相加；它是 session-level 成本。
+
+## Fast path：不寫 per-window archive
+
+persistent worker 預設只將 inference 產生的 `world_points` 直接送入 fusion，不寫每個 window 的完整 `predictions.npz`，以避免 archive I/O 進入 hot path。若需要保存研究用 archive，加入：
+
+```bash
+--save-window-archives
+```
+
+此選項只影響 persistent LingBot backend；prediction replay 與非 persistent fallback 維持原本行為。
