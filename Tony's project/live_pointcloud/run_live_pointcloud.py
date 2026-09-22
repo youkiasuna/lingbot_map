@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path(__file__).resolve().parent / "outputs" / "live_pointcloud.ply",
     )
-    parser.add_argument("--fps", type=float, default=2.0, help="Frames sent to the model per second")
+    parser.add_argument("--fps", type=float, default=5.0, help="Frames sent to the model per second; high-quality default keeps more overlap")
     parser.add_argument("--port", type=int, default=8080, help="Live 3D viewer web port")
     parser.add_argument("--no-browser", action="store_true", help="Do not automatically open the viewer in a browser")
     parser.add_argument("--num-scale-frames", type=int, default=8)
@@ -72,7 +72,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--patch-size", type=int, default=14)
     parser.add_argument("--kv-cache-sliding-window", type=int, default=64)
     parser.add_argument("--keyframe-interval", type=int, default=1)
-    parser.add_argument("--camera-num-iterations", type=int, default=1)
+    parser.add_argument("--camera-num-iterations", type=int, default=4)
     parser.add_argument("--conf-threshold", type=float, default=1.5)
     parser.add_argument(
         "--sample-stride",
@@ -83,7 +83,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-points",
         type=int,
-        default=1_000_000,
+        default=2_000_000,
         help="Maximum accumulated points kept in the live PLY; 0 = unlimited.",
     )
     parser.add_argument("--jpeg-quality", type=int, default=90)
