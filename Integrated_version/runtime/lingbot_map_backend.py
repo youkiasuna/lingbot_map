@@ -25,6 +25,7 @@ class LingBotMapBackendConfig:
     use_sdpa: bool = True
     keep_window_packages: bool = True
     persistent_session: bool = False
+    save_window_archives: bool = False
 
 
 class LingBotMapBackend:
@@ -44,6 +45,7 @@ class LingBotMapBackend:
             lingbot_root=config.lingbot_root,
             camera_num_iterations=config.camera_num_iterations,
             use_sdpa=config.use_sdpa,
+            write_archive=config.save_window_archives,
         )) if config.persistent_session else None
         self.image_paths = sorted(
             path for path in config.source_dir.iterdir()
@@ -105,7 +107,7 @@ class LingBotMapBackend:
                     points = points[::stride][:self.config.max_points_per_window]
                 if self.session is None:
                     timings["point_extract"] = round((time.perf_counter() - point_started) * 1000.0, 3)
-                source_path = str(package_dir / "predictions.npz")
+                source_path = str(package_dir / "predictions.npz") if self.session is None or self.config.save_window_archives else "in_memory_world_points"
                 if not self.config.keep_window_packages:
                     shutil.rmtree(package_dir)
             yield LocalPointCloudResult(
