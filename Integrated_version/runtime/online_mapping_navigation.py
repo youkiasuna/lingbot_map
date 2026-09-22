@@ -48,6 +48,13 @@ def camera_source(value: str) -> int | str:
 
 def main() -> int:
     import cv2
+    from experiments.orb_keyframe_localizer import OrbRelocalizer
+    from hardware.esp32_adapter import Esp32Adapter, Esp32Config
+    from localization.pose_gate import PoseGate, PoseGateConfig
+    from planner.pure_pursuit import PurePursuit
+    from runtime.live_map_manager import LiveMapManager
+    from runtime.live_viewer_state import LiveViewerState
+    from runtime.navigation_manager import NavigationManager
     args = parse_args()
     if args.queue_size <= 0 or args.max_frames < 0:
         raise SystemExit("queue-size must be positive and max-frames cannot be negative")
