@@ -16,6 +16,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
 INTEGRATED_ROOT = Path(__file__).resolve().parents[1]
 PLANNER_DIR = INTEGRATED_ROOT / "planner"
 if str(PLANNER_DIR) not in sys.path:
@@ -63,6 +68,7 @@ def write_json(path: Path, payload: dict[str, object]) -> None:
 
 class NavigationHandler(BaseHTTPRequestHandler):
     map_dir: Path
+    live_dir: Path
     allow_unknown: bool
     use_obstacle_distance: bool
     safety_radius_m: float
@@ -104,6 +110,12 @@ class NavigationHandler(BaseHTTPRequestHandler):
             self.handle_get_optional_json("planned_path.json", "path")
         elif path == "/api/navigation":
             self.handle_get_optional_json("navigation_state.json", "navigation")
+        elif path == "/api/live/status":
+            self.handle_live_json("live_status.json", "status")
+        elif path == "/api/live/pose":
+            self.handle_live_json("live_pose.json", "pose")
+        elif path == "/api/live/map":
+            self.handle_live_map()
         else:
             self.send_error_json(HTTPStatus.NOT_FOUND, f"Unknown route: {unquote(path)}")
 
@@ -197,6 +209,41 @@ class NavigationHandler(BaseHTTPRequestHandler):
             return
         self.send_json({"status": "ok", key: payload})
 
+    def handle_live_json(self, filename: str, key: str) -> None:
+        try:
+            payload = read_json(self.live_dir / filename)
+        except ValueError as exc:
+            self.send_error_json(HTTPStatus.CONFLICT, str(exc))
+            return
+        if payload is None:
+            self.send_json({"status": "missing", key: None})
+            return
+        self.send_json({"status": "ok", key: payload})
+
+    def handle_live_map(self) -> None:
+        try:
+            metadata = read_json(self.live_dir / "live_map.json")
+            status = read_json(self.live_dir / "live_status.json")
+        except ValueError as exc:
+            self.send_error_json(HTTPStatus.CONFLICT, str(exc))
+            return
+        if metadata is None:
+            self.send_json({"status": "missing", "map": None, "points_xyz": []})
+            return
+        points = []
+        path = self.live_dir / "live_points.npz"
+        if np is not None and path.exists():
+            try:
+                with np.load(path, allow_pickle=False) as archive:
+                    values = np.asarray(archive["points_xyz"], dtype=np.float32).reshape(-1, 3)
+                values = values[np.isfinite(values).all(axis=1)]
+                if len(values) > 20000:
+                    values = values[::max(1, len(values) // 20000)][:20000]
+                points = values.tolist()
+            except (OSError, KeyError, ValueError):
+                points = []
+        self.send_json({"status": "ok", "map": metadata, "live_status": status, "points_xyz": points})
+
     def handle_plan(self) -> None:
         try:
             body = self.read_request_json()
@@ -272,6 +319,7 @@ def main() -> None:
     parser.add_argument("--risk-weight", type=float, default=1.0, help="A* cost weight for obstacle proximity")
     parser.add_argument("--min-pose-confidence", type=float, default=0.5, help="Minimum localization confidence for planning or start")
     parser.add_argument("--max-pose-age-s", type=float, default=10.0, help="Maximum accepted localization age in seconds")
+    parser.add_argument("--live-dir", type=Path, help="Directory containing live_map.json and live_points.npz")
     args = parser.parse_args()
 
     if args.safety_radius_m <= 0 or args.risk_weight < 0:
@@ -286,6 +334,7 @@ def main() -> None:
         (NavigationHandler,),
         {
             "map_dir": args.map_dir,
+            "live_dir": args.live_dir or args.map_dir,
             "allow_unknown": args.allow_unknown,
             "use_obstacle_distance": args.use_obstacle_distance,
             "safety_radius_m": args.safety_radius_m,
