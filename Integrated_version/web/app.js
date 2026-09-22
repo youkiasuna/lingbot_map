@@ -1,314 +1,159 @@
-const canvas = document.getElementById("mapCanvas");
-const ctx = canvas.getContext("2d");
-
+const viewer = document.getElementById("viewer");
 const stateText = document.getElementById("stateText");
-const poseText = document.getElementById("poseText");
-const goalText = document.getElementById("goalText");
-const pathText = document.getElementById("pathText");
 const refreshBtn = document.getElementById("refreshBtn");
-const startBtn = document.getElementById("startBtn");
-const stopBtn = document.getElementById("stopBtn");
+const modeText = document.getElementById("modeText");
+const versionText = document.getElementById("versionText");
+const pointsText = document.getElementById("pointsText");
+const windowsText = document.getElementById("windowsText");
+const framesText = document.getElementById("framesText");
+const windowText = document.getElementById("windowText");
+const errorText = document.getElementById("errorText");
 
-const model = {
-  map: null,
-  imageCanvas: null,
-  pose: null,
-  path: null,
-  navigation: null,
-  goal: null,
-  view: { scale: 1, offsetX: 0, offsetY: 0, width: 0, height: 0 },
-};
+let scene;
+let camera;
+let renderer;
+let pointCloud;
+let yaw = 0.7;
+let pitch = 0.45;
+let distance = 6;
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
 
-async function fetchJson(url, options) {
-  const response = await fetch(url, options);
+async function getJson(path) {
+  const response = await fetch(path, { cache: "no-store" });
   const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.message || response.statusText);
-  }
+  if (!response.ok) throw new Error(payload.message || response.statusText);
   return payload;
 }
 
-async function loadMap() {
-  const payload = await fetchJson("/api/map");
-  model.map = payload.map;
-  const pgm = await fetch(model.map.map_url, { cache: "no-store" }).then((r) => r.arrayBuffer());
-  model.imageCanvas = parsePgmToCanvas(new Uint8Array(pgm));
-}
-
-async function refreshDynamicState() {
-  const [pose, path, navigation] = await Promise.all([
-    fetchJson("/api/pose"),
-    fetchJson("/api/path"),
-    fetchJson("/api/navigation"),
-  ]);
-  model.pose = pose.pose;
-  model.path = path.path;
-  model.navigation = navigation.navigation;
-  if (model.path && model.path.goal) {
-    model.goal = { x_m: model.path.goal.x_m, y_m: model.path.goal.y_m };
+function initViewer() {
+  if (!window.THREE) {
+    stateText.textContent = "Three.js 載入失敗";
+    return;
   }
-  render();
-}
-
-function parsePgmToCanvas(bytes) {
-  const decoder = new TextDecoder("ascii");
-  let index = 0;
-
-  function nextToken() {
-    while (index < bytes.length) {
-      const value = bytes[index];
-      if (value === 35) {
-        while (index < bytes.length && bytes[index] !== 10) index += 1;
-      } else if (value <= 32) {
-        index += 1;
-      } else {
-        break;
-      }
-    }
-    const start = index;
-    while (index < bytes.length && bytes[index] > 32) index += 1;
-    return decoder.decode(bytes.slice(start, index));
-  }
-
-  const magic = nextToken();
-  if (magic !== "P5") throw new Error("Expected P5 PGM map.");
-  const width = Number(nextToken());
-  const height = Number(nextToken());
-  const maxValue = Number(nextToken());
-  if (maxValue !== 255) throw new Error("Expected 8-bit PGM map.");
-  while (index < bytes.length && bytes[index] <= 32) index += 1;
-
-  const pixels = bytes.slice(index, index + width * height);
-  const imageData = new ImageData(width, height);
-  for (let i = 0; i < pixels.length; i += 1) {
-    const value = pixels[i];
-    const out = i * 4;
-    if (value <= 100) {
-      imageData.data[out] = 32;
-      imageData.data[out + 1] = 39;
-      imageData.data[out + 2] = 45;
-    } else if (value === 205) {
-      imageData.data[out] = 174;
-      imageData.data[out + 1] = 183;
-      imageData.data[out + 2] = 189;
-    } else {
-      imageData.data[out] = 238;
-      imageData.data[out + 1] = 243;
-      imageData.data[out + 2] = 241;
-    }
-    imageData.data[out + 3] = 255;
-  }
-
-  const outCanvas = document.createElement("canvas");
-  outCanvas.width = width;
-  outCanvas.height = height;
-  outCanvas.getContext("2d").putImageData(imageData, 0, 0);
-  return outCanvas;
-}
-
-function fitCanvas() {
-  const rect = canvas.getBoundingClientRect();
-  const ratio = window.devicePixelRatio || 1;
-  const width = Math.max(1, Math.floor(rect.width * ratio));
-  const height = Math.max(1, Math.floor(rect.height * ratio));
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-}
-
-function updateView() {
-  if (!model.imageCanvas) return;
-  const scale = Math.min(canvas.width / model.imageCanvas.width, canvas.height / model.imageCanvas.height);
-  const width = model.imageCanvas.width * scale;
-  const height = model.imageCanvas.height * scale;
-  model.view = {
-    scale,
-    width,
-    height,
-    offsetX: (canvas.width - width) / 2,
-    offsetY: (canvas.height - height) / 2,
-  };
-}
-
-function worldToCanvas(x_m, y_m) {
-  const map = model.map;
-  const px = (x_m - map.origin_u_m) / map.meters_per_pixel;
-  const py = (map.origin_v_m - y_m) / map.meters_per_pixel;
-  return {
-    x: model.view.offsetX + px * model.view.scale,
-    y: model.view.offsetY + py * model.view.scale,
-  };
-}
-
-function canvasToWorld(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  const ratio = window.devicePixelRatio || 1;
-  const x = (clientX - rect.left) * ratio;
-  const y = (clientY - rect.top) * ratio;
-  const px = (x - model.view.offsetX) / model.view.scale;
-  const py = (y - model.view.offsetY) / model.view.scale;
-  if (!model.imageCanvas || px < 0 || py < 0 || px >= model.imageCanvas.width || py >= model.imageCanvas.height) {
-    return null;
-  }
-  return {
-    x_m: model.map.origin_u_m + px * model.map.meters_per_pixel,
-    y_m: model.map.origin_v_m - py * model.map.meters_per_pixel,
-  };
-}
-
-function render() {
-  fitCanvas();
-  updateView();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  if (model.imageCanvas) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(model.imageCanvas, model.view.offsetX, model.view.offsetY, model.view.width, model.view.height);
-  }
-
-  drawPath();
-  drawGoal();
-  drawPose();
-  updateText();
-  updateControls();
-}
-
-function updateControls() {
-  const hasPose = Boolean(model.pose);
-  const hasPath = Boolean(model.path && model.path.waypoints && model.path.waypoints.length >= 2);
-  startBtn.disabled = !hasPose || !hasPath;
-  stopBtn.disabled = !model.navigation || model.navigation.state === "STOP";
-}
-
-function drawPath() {
-  if (!model.path || !model.path.waypoints || model.path.waypoints.length < 2) return;
-  ctx.save();
-  ctx.strokeStyle = "#e5a600";
-  ctx.lineWidth = Math.max(3, 4 * (window.devicePixelRatio || 1));
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  model.path.waypoints.forEach((point, index) => {
-    const screen = worldToCanvas(point.x_m, point.y_m);
-    if (index === 0) ctx.moveTo(screen.x, screen.y);
-    else ctx.lineTo(screen.x, screen.y);
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x101820);
+  camera = new THREE.PerspectiveCamera(55, 1, 0.01, 10000);
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  viewer.appendChild(renderer.domElement);
+  scene.add(new THREE.GridHelper(10, 20, 0x4a6872, 0x26383e));
+  scene.add(new THREE.AxesHelper(1));
+  resize();
+  viewer.addEventListener("pointerdown", (event) => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    viewer.setPointerCapture(event.pointerId);
   });
-  ctx.stroke();
-  ctx.restore();
+  viewer.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    yaw -= (event.clientX - lastX) * 0.008;
+    pitch = Math.max(-1.4, Math.min(1.4, pitch + (event.clientY - lastY) * 0.008));
+    lastX = event.clientX;
+    lastY = event.clientY;
+  });
+  viewer.addEventListener("pointerup", () => { dragging = false; });
+  viewer.addEventListener("wheel", (event) => {
+    distance = Math.max(0.3, Math.min(100, distance * Math.exp(event.deltaY * 0.001)));
+    event.preventDefault();
+  }, { passive: false });
+  animate();
 }
 
-function drawGoal() {
-  if (!model.goal) return;
-  const screen = worldToCanvas(model.goal.x_m, model.goal.y_m);
-  ctx.save();
-  ctx.strokeStyle = "#b33a3a";
-  ctx.lineWidth = 3 * (window.devicePixelRatio || 1);
-  const radius = 8 * (window.devicePixelRatio || 1);
-  ctx.beginPath();
-  ctx.moveTo(screen.x - radius, screen.y - radius);
-  ctx.lineTo(screen.x + radius, screen.y + radius);
-  ctx.moveTo(screen.x + radius, screen.y - radius);
-  ctx.lineTo(screen.x - radius, screen.y + radius);
-  ctx.stroke();
-  ctx.restore();
+function resize() {
+  if (!renderer) return;
+  const width = Math.max(1, viewer.clientWidth);
+  const height = Math.max(1, viewer.clientHeight);
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
 }
 
-function drawPose() {
-  if (!model.pose) return;
-  const screen = worldToCanvas(model.pose.x_m, model.pose.y_m);
-  const yaw = ((model.pose.yaw_deg || 0) * Math.PI) / 180;
-  const size = 14 * (window.devicePixelRatio || 1);
-  ctx.save();
-  ctx.translate(screen.x, screen.y);
-  ctx.rotate(-yaw);
-  ctx.fillStyle = "#087f8c";
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 2 * (window.devicePixelRatio || 1);
-  ctx.beginPath();
-  ctx.moveTo(size, 0);
-  ctx.lineTo(-size * 0.65, -size * 0.55);
-  ctx.lineTo(-size * 0.45, 0);
-  ctx.lineTo(-size * 0.65, size * 0.55);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
-function updateText() {
-  if (model.navigation) {
-    stateText.textContent = model.navigation.state || "READY";
-  } else {
-    stateText.textContent = model.map ? "READY" : "Loading";
+function replacePointCloud(points) {
+  if (!scene || !window.THREE) return;
+  if (pointCloud) {
+    scene.remove(pointCloud);
+    pointCloud.geometry.dispose();
+    pointCloud.material.dispose();
   }
-
-  poseText.textContent = model.pose
-    ? `${model.pose.x_m.toFixed(2)}, ${model.pose.y_m.toFixed(2)}, ${Number(model.pose.yaw_deg || 0).toFixed(0)} deg`
-    : "No current_pose.json";
-
-  goalText.textContent = model.goal
-    ? `${model.goal.x_m.toFixed(2)}, ${model.goal.y_m.toFixed(2)}`
-    : "Click map";
-
-  pathText.textContent = model.path
-    ? `${model.path.path_length_m.toFixed(2)} m, ${model.path.waypoint_count} waypoints`
-    : "No path";
-}
-
-async function planToClick(event) {
-  if (!model.map || !model.pose) {
-    stateText.textContent = "Pose missing";
+  if (!points.length) {
+    pointCloud = null;
     return;
   }
-  const goal = canvasToWorld(event.clientX, event.clientY);
-  if (!goal) {
-    stateText.textContent = "Goal outside map";
-    return;
-  }
-  model.goal = goal;
-  goalText.textContent = `${goal.x_m.toFixed(2)}, ${goal.y_m.toFixed(2)}`;
-  stateText.textContent = "Planning";
-  render();
+  const positions = new Float32Array(points.length * 3);
+  const colors = new Float32Array(points.length * 3);
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+  points.forEach((p) => {
+    minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
+    minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
+    minZ = Math.min(minZ, p[2]); maxZ = Math.max(maxZ, p[2]);
+  });
+  const center = [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
+  const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 0.1);
+  points.forEach((p, i) => {
+    positions.set([(p[0] - center[0]), (p[1] - center[1]), (p[2] - center[2])], i * 3);
+    const height = (p[1] - minY) / span;
+    colors.set([0.1 + height * 0.2, 0.65 + height * 0.25, 0.85], i * 3);
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  pointCloud = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({ size: Math.max(span / 300, 0.005), vertexColors: true })
+  );
+  pointCloud.position.set(center[0], center[1], center[2]);
+  scene.add(pointCloud);
+  distance = Math.max(span * 1.8, 1);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (!renderer) return;
+  const target = pointCloud ? pointCloud.position : new THREE.Vector3();
+  const horizontal = Math.cos(pitch) * distance;
+  camera.position.set(
+    target.x + Math.sin(yaw) * horizontal,
+    target.y + Math.sin(pitch) * distance,
+    target.z + Math.cos(yaw) * horizontal
+  );
+  camera.lookAt(target);
+  renderer.render(scene, camera);
+}
+
+function showStatus(status, map) {
+  const quality = map && map.quality ? map.quality : {};
+  modeText.textContent = status && status.mode ? status.mode : "等待";
+  versionText.textContent = map && map.map_version != null ? map.map_version : "-";
+  pointsText.textContent = quality.point_count != null ? quality.point_count : "-";
+  windowsText.textContent = status && status.processed_windows != null ? status.processed_windows : "-";
+  framesText.textContent = status && status.submitted_frames != null ? status.submitted_frames : "-";
+  windowText.textContent = status && status.mapping_window_id ? status.mapping_window_id : "-";
+  errorText.textContent = status && (status.worker_error || status.reader_error) ? (status.worker_error || status.reader_error) : "無";
+  stateText.textContent = status && status.mode === "MAPPING" ? "即時建圖中" : "等待資料";
+}
+
+async function refresh() {
   try {
-    const payload = await fetchJson("/api/plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ goal_x_m: goal.x_m, goal_y_m: goal.y_m }),
-    });
-    model.path = payload.path;
-    model.navigation = { state: "GOAL_SELECTED" };
-    render();
+    const [statusResponse, mapResponse] = await Promise.all([
+      getJson("/api/live/status"),
+      getJson("/api/live/map"),
+    ]);
+    const status = statusResponse.status === "ok" ? statusResponse.status : statusResponse;
+    showStatus(status, mapResponse.map);
+    replacePointCloud(mapResponse.points_xyz || []);
   } catch (error) {
-    stateText.textContent = error.message;
+    stateText.textContent = "等待 live mapping";
+    errorText.textContent = error.message;
   }
 }
 
-async function postNavigation(url) {
-  try {
-    const payload = await fetchJson(url, { method: "POST" });
-    model.navigation = payload.navigation;
-    render();
-  } catch (error) {
-    stateText.textContent = error.message;
-  }
-}
-
-async function initialize() {
-  try {
-    await loadMap();
-    await refreshDynamicState();
-    render();
-  } catch (error) {
-    stateText.textContent = error.message;
-  }
-}
-
-canvas.addEventListener("click", planToClick);
-refreshBtn.addEventListener("click", refreshDynamicState);
-startBtn.addEventListener("click", () => postNavigation("/api/navigation/start"));
-stopBtn.addEventListener("click", () => postNavigation("/api/navigation/stop"));
-window.addEventListener("resize", render);
-
-setInterval(refreshDynamicState, 1000);
-initialize();
+refreshBtn.addEventListener("click", refresh);
+window.addEventListener("resize", resize);
+initViewer();
+refresh();
+setInterval(refresh, 1000);
