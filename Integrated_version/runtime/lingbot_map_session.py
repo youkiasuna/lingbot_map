@@ -74,6 +74,7 @@ class LingBotMapSession:
 
     def infer_image_folder(self, image_dir: Path, output_dir: Path) -> dict[str, Any]:
         started = time.perf_counter()
+        image_prepare_started = time.perf_counter()
         images, frame_paths, resolved_folder = self.demo.load_images(
             image_folder=str(image_dir),
             video_path=None,
@@ -85,6 +86,7 @@ class LingBotMapSession:
             rotate_clockwise_90=False,
         )
         export_preprocessed_images(images, output_dir / "preprocessed")
+        image_prepare_ms = round((time.perf_counter() - image_prepare_started) * 1000.0, 3)
         images = images.to(self.device)
         output_device = torch.device("cpu") if self.config.offload_to_cpu else None
         inference_started = time.perf_counter()
@@ -119,6 +121,7 @@ class LingBotMapSession:
         else:
             images_for_post = images
         predictions, images_cpu = self.demo.postprocess(predictions, images_for_post)
+        archive_write_started = time.perf_counter()
         archive, metadata = write_prediction_archive(
             predictions,
             frame_paths,
@@ -126,9 +129,13 @@ class LingBotMapSession:
             output_dir / "preprocessed",
             self.demo._get_world_points,
         )
-        points = np.asarray(predictions["world_points"])
+        archive_write_ms = round((time.perf_counter() - archive_write_started) * 1000.0, 3)
+        point_extract_started = time.perf_counter()
+        with np.load(archive, allow_pickle=False) as archive_data:
+            points = np.asarray(archive_data["world_points"])
         points = points.reshape(-1, 3)
         points = points[np.isfinite(points).all(axis=1)]
+        point_extract_ms = round((time.perf_counter() - point_extract_started) * 1000.0, 3)
         return {
             "points_xyz": points.astype(np.float32),
             "archive": archive,
@@ -137,4 +144,12 @@ class LingBotMapSession:
             "inference_ms": inference_ms,
             "total_ms": round((time.perf_counter() - started) * 1000.0, 3),
             "device": str(self.device),
+            "timings_ms": {
+                "image_prepare": image_prepare_ms,
+                "model_load": self.model_load_ms,
+                "inference": inference_ms,
+                "archive_write": archive_write_ms,
+                "point_extract": point_extract_ms,
+                "session_total": round((time.perf_counter() - started) * 1000.0, 3),
+            },
         }
