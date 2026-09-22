@@ -87,11 +87,7 @@ class LingBotMapBackend:
                 if self.session is not None:
                     session_result = self.session.infer_image_folder(image_dir, package_dir)
                     points = session_result["points_xyz"]
-                    timings.update({
-                        "model_load": session_result["model_load_ms"],
-                        "inference": session_result["inference_ms"],
-                        "session_total": session_result["total_ms"],
-                    })
+                    timings.update(session_result["timings_ms"])
                 else:
                     self._run_mapping(image_dir, package_dir)
                     timings["mapping_subprocess"] = round((time.perf_counter() - inference_started) * 1000.0, 3)
@@ -107,7 +103,8 @@ class LingBotMapBackend:
                 if len(points) > self.config.max_points_per_window:
                     stride = max(1, len(points) // self.config.max_points_per_window)
                     points = points[::stride][:self.config.max_points_per_window]
-                timings["point_extract"] = round((time.perf_counter() - load_started) * 1000.0, 3)
+                if self.session is None:
+                    timings["point_extract"] = round((time.perf_counter() - point_started) * 1000.0, 3)
                 source_path = str(package_dir / "predictions.npz")
                 if not self.config.keep_window_packages:
                     shutil.rmtree(package_dir)
