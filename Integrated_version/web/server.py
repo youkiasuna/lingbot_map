@@ -67,7 +67,7 @@ def write_json(path: Path, payload: dict[str, object]) -> None:
 
 
 class NavigationHandler(BaseHTTPRequestHandler):
-    map_dir: Path
+    map_dir: Path | None
     live_dir: Path
     allow_unknown: bool
     use_obstacle_distance: bool
@@ -100,7 +100,7 @@ class NavigationHandler(BaseHTTPRequestHandler):
             self.serve_file(STATIC_DIR / "app.js", "application/javascript; charset=utf-8")
         elif path == "/styles.css":
             self.serve_file(STATIC_DIR / "styles.css", "text/css; charset=utf-8")
-        elif path == "/map.pgm":
+        elif path == "/map.pgm" and self.map_dir is not None:
             self.serve_file(self.map_dir / "map.pgm", "application/octet-stream")
         elif path == "/api/map":
             self.handle_get_map()
@@ -162,6 +162,8 @@ class NavigationHandler(BaseHTTPRequestHandler):
         return payload
 
     def get_navigation_pose(self) -> tuple[float, float]:
+        if self.map_dir is None:
+            raise NavigationPreconditionError("Static navigation map is not configured.")
         pose = read_json(self.map_dir / "current_pose.json")
         if pose is None:
             raise NavigationPreconditionError("current_pose.json is missing. Start the mock or visual localizer first.")
@@ -185,6 +187,9 @@ class NavigationHandler(BaseHTTPRequestHandler):
         return x_m, y_m
 
     def handle_get_map(self) -> None:
+        if self.map_dir is None:
+            self.send_json({"status": "missing", "map": None})
+            return
         try:
             metadata = read_json(self.map_dir / "map.json")
         except ValueError as exc:
@@ -310,7 +315,7 @@ class NavigationHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Serve the map localization test UI.")
-    parser.add_argument("--map-dir", required=True, type=Path, help="Directory containing map.pgm and map.json")
+    parser.add_argument("--map-dir", type=Path, help="Optional static map directory containing map.pgm and map.json")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host")
     parser.add_argument("--port", type=int, default=18088, help="Bind port")
     parser.add_argument("--allow-unknown", action="store_true", help="Allow A* to plan through unknown map cells")
@@ -326,7 +331,7 @@ def main() -> None:
         raise SystemExit("--safety-radius-m must be positive and --risk-weight cannot be negative")
     if not 0.0 <= args.min_pose_confidence <= 1.0 or args.max_pose_age_s <= 0:
         raise SystemExit("--min-pose-confidence must be in [0, 1] and --max-pose-age-s must be positive")
-    if not (args.map_dir / "map.pgm").exists() or not (args.map_dir / "map.json").exists():
+    if args.map_dir is not None and (not (args.map_dir / "map.pgm").exists() or not (args.map_dir / "map.json").exists()):
         raise SystemExit(f"{args.map_dir} must contain map.pgm and map.json")
 
     handler = type(
