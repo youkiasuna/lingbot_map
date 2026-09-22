@@ -61,6 +61,7 @@ def main() -> int:
     records = []
     started = time.perf_counter()
     latency_samples = []
+    session_timings = {}
 
     def output_bytes() -> int:
         return sum(path.stat().st_size for path in args.output_dir.rglob("*") if path.is_file()) if args.output_dir.exists() else 0
@@ -83,13 +84,16 @@ def main() -> int:
             tracked_ratio=1.0,
             navigable=True,
         )
+        backend_timings = dict(local_result.timings_ms)
+        if "model_load" in backend_timings:
+            session_timings["model_load_ms"] = backend_timings.pop("model_load")
         record = {
             "map_version": result.map_version,
             "backend": local_result.backend,
             "start_frame": local_result.start_frame,
             "end_frame": local_result.end_frame,
             "backend_latency_ms": local_result.latency_ms,
-            "backend_timings_ms": local_result.timings_ms,
+            "backend_timings_ms": backend_timings,
             "input_points": result.input_points,
             "fused_points": result.fused_points,
             "accepted": accepted,
@@ -105,6 +109,7 @@ def main() -> int:
         "schema_version": 1,
         "source_package": str(args.mapping_package.resolve()) if args.mapping_package else None,
         "backend": args.backend,
+        "session_timings_ms": session_timings,
         "benchmark_label": args.benchmark_label,
         "window_size": args.window_size,
         "process_every": args.process_every,
