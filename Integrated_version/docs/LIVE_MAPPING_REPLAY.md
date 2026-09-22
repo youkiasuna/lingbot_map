@@ -159,3 +159,16 @@ python Integrated_version/experiments/run_live_mapping_replay.py \\
 ```
 
 第一次 window 會包含 model load 成本；第二次 window 用來觀察是否只剩 inference 成本。這仍是 windowed offline inference，不是 RTSP streaming inference。
+
+## Profiling 欄位語意
+
+`replay_summary.json` 中：
+
+- `session_timings_ms.model_load_ms`：常駐 session 啟動時的模型載入，只記錄一次。
+- `records[*].backend_timings_ms.inference`：單一 window inference latency。
+- `records[*].backend_timings_ms.image_prepare`：單一 window 影像準備 latency。
+- `records[*].backend_timings_ms.archive_write`：單一 window archive 寫入 latency。
+- `records[*].backend_timings_ms.point_extract`：單一 window 從 archive 取得 world points 的 latency。
+- `records[*].backend_timings_ms.backend_total`：該 window backend 總 latency。
+
+因此不能將每筆 window 的 `model_load_ms` 相加；它是 session-level 成本。
