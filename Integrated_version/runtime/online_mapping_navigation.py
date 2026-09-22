@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import threading
 import time
-import cv2
 
 from experiments.orb_keyframe_localizer import OrbRelocalizer
 from hardware.esp32_adapter import Esp32Adapter, Esp32Config
@@ -48,6 +47,7 @@ def camera_source(value: str) -> int | str:
 
 
 def main() -> int:
+    import cv2
     args = parse_args()
     if args.queue_size <= 0 or args.max_frames < 0:
         raise SystemExit("queue-size must be positive and max-frames cannot be negative")
