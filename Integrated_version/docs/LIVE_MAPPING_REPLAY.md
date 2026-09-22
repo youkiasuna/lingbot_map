@@ -137,3 +137,25 @@ python -m json.tool outputs/runtime/live_mapping_benchmark/replay_summary.json
 
 `replay_summary.json` 會根據 backend 分別說明：`prediction` 使用既有 world points；`lingbot` 則代表 selected windows 重新產生 predictions.npz，但仍屬 windowed offline inference，不是 streaming inference。
 \n## LingBot-MAP backend 單一 window 測試\n\n這個測試會實際呼叫現有 `run_lingbot_mapping.py`，請先只執行一個 window：\n\n```bash\nPYTHONPATH=Integrated_version \\\npython Integrated_version/experiments/run_live_mapping_replay.py \\\n  --backend lingbot \\\n  --source-dir data/frames/20260818_frames \\\n  --model-path models/lingbot-map.pt \\\n  --lingbot-root lingbot-map-main \\\n  --output-dir outputs/runtime/live_mapping_lingbot_test \\\n  --window-size 10 \\\n  --process-every 10 \\\n  --max-frames 10 \\\n  --max-windows 1 \\\n  --benchmark-label lingbot_single_window\n```\n\n這會使用 GPU 與產生局部 mapping package；實際 inference latency、GPU memory 與輸出是否成功必須在 RTX 3090 主機測試，目前為 `NOT VERIFIED`。\n
+
+## 常駐 LingBot-MAP worker 測試
+
+加入 `--persistent-worker` 後，LingBot-MAP model 會在 backend 初始化時載入一次，後續 window 共用同一個 session：
+
+```bash
+PYTHONPATH=Integrated_version \\
+python Integrated_version/experiments/run_live_mapping_replay.py \\
+  --backend lingbot \\
+  --persistent-worker \\
+  --source-dir data/frames/20260818_frames \\
+  --model-path models/lingbot-map.pt \\
+  --lingbot-root lingbot-map-main \\
+  --output-dir outputs/runtime/live_mapping_persistent_test \\
+  --window-size 10 \\
+  --process-every 10 \\
+  --max-frames 20 \\
+  --max-windows 2 \\
+  --benchmark-label persistent_two_windows
+```
+
+第一次 window 會包含 model load 成本；第二次 window 用來觀察是否只剩 inference 成本。這仍是 windowed offline inference，不是 RTSP streaming inference。
