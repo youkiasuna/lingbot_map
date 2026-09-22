@@ -116,6 +116,8 @@ class NavigationHandler(BaseHTTPRequestHandler):
             self.handle_live_json("live_pose.json", "pose")
         elif path == "/api/live/map":
             self.handle_live_map()
+        elif path == "/api/live/frame.jpg":
+            self.serve_file(self.live_dir / "live_frame.jpg", "image/jpeg")
         else:
             self.send_error_json(HTTPStatus.NOT_FOUND, f"Unknown route: {unquote(path)}")
 
