@@ -7,14 +7,7 @@ from pathlib import Path
 import threading
 import time
 
-from experiments.orb_keyframe_localizer import OrbRelocalizer
-from hardware.esp32_adapter import Esp32Adapter, Esp32Config
-from localization.pose_gate import PoseGate, PoseGateConfig
-from planner.pure_pursuit import PurePursuit
 from runtime.frame_queue import FramePacket, LatestFrameQueue
-from runtime.live_map_manager import LiveMapManager
-from runtime.live_viewer_state import LiveViewerState
-from runtime.navigation_manager import NavigationManager
 
 
 def parse_args() -> argparse.Namespace:
