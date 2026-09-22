@@ -5,7 +5,8 @@ Only does:
     IP camera -> LingBot-MAP streaming inference -> cumulative PLY updates
 
 It does NOT depend on Integrated_version and does NOT provide navigation,
-TSDF, classification, replay, or a web server.
+TSDF, classification, or replay. A lightweight Viser web viewer shows the
+point cloud while it is being updated.
 
 Example:
     python "Tony's project/live_pointcloud/run_live_pointcloud.py" \
@@ -20,6 +21,8 @@ import argparse
 import os
 import sys
 import time
+import threading
+import webbrowser
 from pathlib import Path
 
 # Reduce CUDA allocator fragmentation. Must be set before importing torch.
@@ -39,12 +42,17 @@ if str(LINGBOT_ROOT) not in sys.path:
 
 from lingbot_map.models.gct_stream import GCTStream
 
+try:
+    import viser
+except ImportError:
+    viser = None
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Live IP-camera -> LingBot-MAP -> updating PLY point cloud"
     )
-    parser.add_argument("--url", required=True, help="IP camera MJPEG/RTSP URL")
+    parser.add_argument("--url", default=None, help="IP camera MJPEG/RTSP URL. If omitted, you will be prompted at startup.")
     parser.add_argument(
         "--model-path",
         type=Path,
@@ -57,6 +65,8 @@ def parse_args() -> argparse.Namespace:
         default=Path(__file__).resolve().parent / "outputs" / "live_pointcloud.ply",
     )
     parser.add_argument("--fps", type=float, default=2.0, help="Frames sent to the model per second")
+    parser.add_argument("--port", type=int, default=8080, help="Live 3D viewer web port")
+    parser.add_argument("--no-browser", action="store_true", help="Do not automatically open the viewer in a browser")
     parser.add_argument("--num-scale-frames", type=int, default=8)
     parser.add_argument("--image-size", type=int, default=518)
     parser.add_argument("--patch-size", type=int, default=14)
@@ -90,6 +100,10 @@ def parse_args() -> argparse.Namespace:
     )
     args = parser.parse_args()
 
+    if not args.url:
+        args.url = input("Camera URL (example http://192.168.1.100:8080/video): ").strip()
+        if not args.url:
+            parser.error("camera URL cannot be empty")
     if args.fps <= 0:
         parser.error("--fps must be > 0")
     if args.num_scale_frames < 2:
@@ -291,6 +305,40 @@ def infer_block(
         )
 
 
+class LiveWebViewer:
+    """Very small Viser viewer whose single point cloud is updated in-place."""
+
+    def __init__(self, port: int):
+        if viser is None:
+            raise RuntimeError(
+                "viser is not installed. Run: pip install -e 'lingbot-map-main[vis]'"
+            )
+        self.server = viser.ViserServer(host="0.0.0.0", port=port)
+        self.server.gui.configure_theme(titlebar_content=None, control_layout="collapsible")
+        self.handle = None
+        self.center = None
+        self.lock = threading.Lock()
+
+    def update(self, points: np.ndarray, colors: np.ndarray) -> None:
+        if len(points) == 0:
+            return
+        with self.lock:
+            if self.center is None:
+                self.center = np.median(points, axis=0).astype(np.float32)
+            shown = points - self.center
+            if self.handle is None:
+                self.handle = self.server.scene.add_point_cloud(
+                    "/live_pointcloud",
+                    points=shown,
+                    colors=colors,
+                    point_size=0.002,
+                    point_shape="circle",
+                )
+            else:
+                self.handle.points = shown
+                self.handle.colors = colors
+
+
 def main() -> int:
     args = parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -311,6 +359,12 @@ def main() -> int:
 
     model.clean_kv_cache()
     accumulator = PointAccumulator(args.max_points)
+
+    viewer = LiveWebViewer(args.port)
+    viewer_url = f"http://127.0.0.1:{args.port}"
+    print(f"Live 3D viewer: {viewer_url}", flush=True)
+    if not args.no_browser:
+        threading.Timer(1.0, lambda: webbrowser.open(viewer_url)).start()
 
     cap = cv2.VideoCapture(
         args.url,
@@ -418,6 +472,7 @@ def main() -> int:
             points, colors = accumulator.arrays()
             if len(points):
                 write_ply_atomic(args.output, points, colors)
+                viewer.update(points, colors)
 
             cache_info = model.get_kv_cache_info()
             print(
