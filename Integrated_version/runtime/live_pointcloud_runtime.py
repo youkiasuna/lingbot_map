@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run RTSP-only live 3D mapping without visual localization or motor control."""
+"""Run persistent RTSP-only live 3D mapping without localization or motor control."""
 from __future__ import annotations
 
 import argparse
@@ -28,6 +28,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--process-every", type=int, default=10)
     parser.add_argument("--max-windows", type=int, default=0)
     parser.add_argument("--max-frames", type=int, default=0)
+    parser.add_argument("--fps", type=float, default=5.0)
+    parser.add_argument("--read-timeout-ms", type=int, default=10000)
+    parser.add_argument("--reconnect-delay-s", type=float, default=1.0)
+    parser.add_argument("--max-reconnects", type=int, default=0)
     parser.add_argument("--voxel-size-m", type=float, default=0.03)
     parser.add_argument("--max-points", type=int, default=250000)
     return parser.parse_args()
@@ -37,18 +41,33 @@ def camera_source(value: str) -> int | str:
     return int(value) if value.isdigit() else value
 
 
+def open_capture(cv2, source: int | str, timeout_ms: int):
+    capture = cv2.VideoCapture(
+        source,
+        cv2.CAP_FFMPEG,
+        [
+            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
+            timeout_ms,
+            cv2.CAP_PROP_READ_TIMEOUT_MSEC,
+            timeout_ms,
+        ],
+    )
+    if not capture.isOpened():
+        capture.release()
+        return None
+    return capture
+
+
 def main() -> int:
     import cv2
 
     args = parse_args()
-    if args.max_frames < 0 or args.max_windows < 0:
-        raise SystemExit("max-frames and max-windows cannot be negative")
-    if args.window_size <= 0 or args.process_every <= 0:
-        raise SystemExit("window-size and process-every must be positive")
-
-    capture = cv2.VideoCapture(camera_source(args.url))
-    if not capture.isOpened():
-        raise RuntimeError(f"Unable to open camera source: {args.url}")
+    if args.max_frames < 0 or args.max_windows < 0 or args.max_reconnects < 0:
+        raise SystemExit("max-frames, max-windows, and max-reconnects cannot be negative")
+    if args.window_size <= 0 or args.process_every <= 0 or args.fps <= 0:
+        raise SystemExit("window-size, process-every, and fps must be positive")
+    if args.read_timeout_ms <= 0 or args.reconnect_delay_s < 0:
+        raise SystemExit("read-timeout-ms must be positive and reconnect-delay-s cannot be negative")
 
     live_manager = LiveMapManager(args.live_map_dir, max_points=args.max_points)
     fusion = IncrementalVoxelMap(
@@ -63,6 +82,7 @@ def main() -> int:
     stop_event = threading.Event()
     reader_error: list[str] = []
     submitted = 0
+    reconnects = 0
 
     def on_result(result: dict) -> None:
         fusion_result = fusion.update(result["points_xyz"])
@@ -75,6 +95,8 @@ def main() -> int:
         )
         live_manager.publish_status(
             mode="MAPPING",
+            mapping_only=True,
+            camera_connected=True,
             mapping_backend="lingbot",
             mapping_window_id=result["window_id"],
             mapping_map_version=fusion_result.map_version,
@@ -102,35 +124,99 @@ def main() -> int:
         on_result,
     )
     worker.start()
+
+    source = camera_source(args.url)
+    capture = None
+    next_submit = 0.0
     print(json.dumps({
         "event": "live_mapping_started",
         "url": args.url,
         "live_map_dir": str(args.live_map_dir),
         "model_load_ms": session.model_load_ms,
         "mode": "MAPPING_ONLY",
+        "fps": args.fps,
     }), flush=True)
 
     try:
         while not stop_event.is_set() and (args.max_frames == 0 or submitted < args.max_frames):
-            ok, frame = capture.read()
-            if not ok:
-                reader_error.append("camera_frame_unavailable")
-                break
-            worker.submit(FramePacket(submitted, frame, time.time()))
-            submitted += 1
             if args.max_windows and worker.processed_windows >= args.max_windows:
                 break
+            if capture is None:
+                capture = open_capture(cv2, source, args.read_timeout_ms)
+                if capture is None:
+                    reconnects += 1
+                    live_manager.publish_status(
+                        mode="RECONNECTING",
+                        mapping_only=True,
+                        camera_connected=False,
+                        reconnect_count=reconnects,
+                        reader_error="camera_open_failed",
+                    )
+                    if args.max_reconnects and reconnects >= args.max_reconnects:
+                        reader_error.append("camera_open_failed")
+                        break
+                    time.sleep(args.reconnect_delay_s)
+                    continue
+                reconnects = 0
+                live_manager.publish_status(
+                    mode="MAPPING",
+                    mapping_only=True,
+                    camera_connected=True,
+                    reconnect_count=0,
+                    reader_error=None,
+                )
+
+            ok, frame = capture.read()
+            if not ok or frame is None:
+                capture.release()
+                capture = None
+                reconnects += 1
+                live_manager.publish_status(
+                    mode="RECONNECTING",
+                    mapping_only=True,
+                    camera_connected=False,
+                    reconnect_count=reconnects,
+                    reader_error="camera_read_failed",
+                )
+                if args.max_reconnects and reconnects >= args.max_reconnects:
+                    reader_error.append("camera_read_failed")
+                    break
+                time.sleep(args.reconnect_delay_s)
+                continue
+
+            now = time.perf_counter()
+            if now < next_submit:
+                continue
+            next_submit = now + 1.0 / args.fps
+            worker.submit(FramePacket(submitted, frame, time.time()))
+            submitted += 1
+            live_manager.publish_status(
+                mode="MAPPING",
+                mapping_only=True,
+                camera_connected=True,
+                last_frame_unix=time.time(),
+                submitted_frames=submitted,
+                processed_windows=worker.processed_windows,
+                reconnect_count=reconnects,
+            )
+    except KeyboardInterrupt:
+        print("\nStopping live mapping.", flush=True)
     finally:
+        stop_event.set()
+        if capture is not None:
+            capture.release()
         worker.stop(timeout_s=30.0)
-        capture.release()
         live_manager.publish_status(
             mode="STOPPED",
             mapping_only=True,
+            camera_connected=False,
             submitted_frames=submitted,
             processed_windows=worker.processed_windows,
+            reconnect_count=reconnects,
             reader_error=reader_error[0] if reader_error else None,
             worker_error=str(worker.error) if worker.error else None,
         )
+
     if worker.error:
         raise worker.error
     return 0
