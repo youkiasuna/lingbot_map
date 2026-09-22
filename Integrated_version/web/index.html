@@ -16,16 +16,26 @@
       <button id="refreshBtn" type="button">立即更新</button>
     </header>
     <section class="layout">
-      <section id="viewer" aria-label="即時三維點雲"></section>
+      <section class="visuals">
+        <div class="card">
+          <h2>目前彩色影像</h2>
+          <img id="frameView" alt="目前 RTSP / MP4 彩色影像">
+        </div>
+        <div class="card viewerCard">
+          <h2>即時 3D 點雲</h2>
+          <div id="viewer" aria-label="即時三維點雲"></div>
+        </div>
+      </section>
       <aside class="panel">
         <div><span>模式</span><strong id="modeText">等待</strong></div>
+        <div><span>Camera</span><strong id="cameraText">等待</strong></div>
         <div><span>Map version</span><strong id="versionText">-</strong></div>
         <div><span>點雲數量</span><strong id="pointsText">-</strong></div>
         <div><span>處理 windows</span><strong id="windowsText">-</strong></div>
         <div><span>輸入影格</span><strong id="framesText">-</strong></div>
         <div><span>最後 window</span><strong id="windowText">-</strong></div>
         <div><span>錯誤</span><strong id="errorText">無</strong></div>
-        <p class="hint">滑鼠拖曳旋轉、滾輪縮放。此頁面只監看建圖，不控制車輛。</p>
+        <p class="hint">拖曳 3D 點雲旋轉、滾輪縮放。此頁面只監看建圖，不控制車輛。</p>
       </aside>
     </section>
   </main>
