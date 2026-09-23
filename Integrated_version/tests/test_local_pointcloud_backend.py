@@ -22,6 +22,10 @@ class LocalPointCloudBackendTests(unittest.TestCase):
             self.assertEqual(results[-1].end_frame, 5)
             self.assertEqual(results[0].confidence, 1.0)
 
+            record = results[0].to_pointcloud_record(map_version=3)
+            self.assertEqual(record.map_version, 3)
+            self.assertEqual(record.point_count, 4)
+            self.assertEqual(record.source_frames, [0, 1])
 
 if __name__ == "__main__":
     unittest.main()
