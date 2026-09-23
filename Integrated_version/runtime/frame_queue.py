@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import Lock
 
-from schemas import FrameRecord
+from schemas import CAMERA_FRAME, FrameRecord, TIMESTAMP_ARRIVAL
 
 
 @dataclass(frozen=True)
@@ -12,12 +12,18 @@ class FramePacket:
     frame: object
     timestamp_unix: float
 
-    def to_record(self, *, source: str = "camera") -> FrameRecord:
-        """Return the shared metadata record without copying the image."""
+    def to_record(
+        self,
+        *,
+        source: str = CAMERA_FRAME,
+        timestamp_source: str = TIMESTAMP_ARRIVAL,
+    ) -> FrameRecord:
+        """Return shared metadata without copying the image."""
         return FrameRecord(
             frame_id=int(self.sequence),
             timestamp_ns=int(float(self.timestamp_unix) * 1_000_000_000),
             source=source,
+            timestamp_source=timestamp_source,
         )
 
 
