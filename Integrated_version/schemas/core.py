@@ -1,6 +1,6 @@
 """Versioned, JSON-compatible records shared by research and runtime code.
 
-These records are intentionally small.  They define the interchange contract
+These records are intentionally small. They define the interchange contract
 without changing any existing producer or consumer yet.
 """
 
@@ -11,6 +11,12 @@ from typing import Any, ClassVar
 
 
 SCHEMA_VERSION = 1
+RECONSTRUCTION_FRAME = "reconstruction"
+NAVIGATION_XZ_FRAME = "navigation_xz"
+CAMERA_FRAME = "camera"
+TIMESTAMP_CAPTURE = "capture"
+TIMESTAMP_ARRIVAL = "arrival"
+TIMESTAMP_SYNTHETIC = "synthetic"
 
 
 def _record_dict(record: Any) -> dict[str, Any]:
@@ -29,6 +35,7 @@ class FrameRecord:
     image_path: str | None = None
     width: int | None = None
     height: int | None = None
+    timestamp_source: str = TIMESTAMP_ARRIVAL
     schema_version: ClassVar[int] = SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
@@ -42,7 +49,7 @@ class PoseRecord:
     position_xyz: list[float] | None = None
     rotation_quaternion_xyzw: list[float] | None = None
     yaw_deg: float | None = None
-    coordinate_frame: str = "reconstruction"
+    coordinate_frame: str = RECONSTRUCTION_FRAME
     timestamp_ns: int | None = None
     confidence: float = 0.0
     schema_version: ClassVar[int] = SCHEMA_VERSION
@@ -58,7 +65,7 @@ class PointCloudRecord:
     points_file: str
     point_count: int
     map_version: int
-    coordinate_frame: str = "reconstruction"
+    coordinate_frame: str = RECONSTRUCTION_FRAME
     timestamp_ns: int | None = None
     source_frames: list[int] = field(default_factory=list)
     has_rgb: bool = False
