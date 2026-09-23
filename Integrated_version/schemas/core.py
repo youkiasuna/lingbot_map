@@ -71,6 +71,8 @@ class PointCloudRecord:
     has_rgb: bool = False
     colors_file: str | None = None
     color_format: str | None = None
+    registration_method: str = "none"
+    registration_status: str = "not_applied"
     schema_version: ClassVar[int] = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
