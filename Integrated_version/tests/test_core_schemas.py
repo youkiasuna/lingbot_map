@@ -74,6 +74,8 @@ class CoreSchemaTests(unittest.TestCase):
         self.assertIsNone(frame.image_path)
         self.assertEqual(frame.timestamp_source, TIMESTAMP_ARRIVAL)
         self.assertFalse(cloud.has_rgb)
+        self.assertIsNone(cloud.colors_file)
+        self.assertIsNone(cloud.color_format)
         self.assertEqual(command.status, "safety_stop")
         self.assertEqual(command.source, "dry_run")
 
