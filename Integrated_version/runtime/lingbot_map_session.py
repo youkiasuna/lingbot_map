@@ -37,6 +37,7 @@ class LingBotMapSessionConfig:
     use_sdpa: bool = True
     offload_to_cpu: bool = True
     write_archive: bool = False
+    extract_rgb: bool = False
 
 
 class LingBotMapSession:
@@ -163,8 +164,9 @@ class LingBotMapSession:
             "inference_ms": inference_ms,
             "total_ms": round((time.perf_counter() - started) * 1000.0, 3),
             "device": str(self.device),
-            "rgb_available": False,
-            "rgb_source": None,
+            "rgb_available": colors_rgb is not None,
+            "rgb_source": "preprocessed_images_rgb" if colors_rgb is not None else None,
+            "colors_rgb": colors_rgb,
             "timings_ms": {
                 "image_prepare": image_prepare_ms,
                 "model_load": self.model_load_ms,
