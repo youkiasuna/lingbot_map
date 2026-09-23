@@ -10,6 +10,7 @@ from typing import Iterator, Protocol
 import time
 import numpy as np
 
+from schemas import PointCloudRecord
 from runtime.local_pointcloud_replay import PredictionPointCloudReplay, LocalWindow
 
 
@@ -25,6 +26,17 @@ class LocalPointCloudResult:
     latency_ms: float
     timings_ms: dict[str, float]
     source: str
+
+    def to_pointcloud_record(self, *, map_version: int = 0) -> PointCloudRecord:
+        """Convert backend output metadata to the shared point-cloud contract."""
+        return PointCloudRecord(
+            points_file=self.source,
+            point_count=int(len(self.points_xyz)),
+            map_version=int(map_version),
+            coordinate_frame="reconstruction",
+            source_frames=list(range(self.start_frame, self.end_frame + 1)),
+            has_rgb=False,
+        )
 
 
 class LocalPointCloudBackend(Protocol):
