@@ -249,7 +249,14 @@ class NavigationHandler(BaseHTTPRequestHandler):
                 points = values.tolist()
             except (OSError, KeyError, ValueError):
                 points = []
-        self.send_json({\n            "status": "ok",\n            "map": metadata,\n            "live_status": status,\n            "pointcloud_record": metadata.get("record"),\n            "status_record": None if status is None else status.get("record"),\n            "points_xyz": points,\n        })
+        self.send_json({
+            "status": "ok",
+            "map": metadata,
+            "live_status": status,
+            "pointcloud_record": metadata.get("record"),
+            "status_record": None if status is None else status.get("record"),
+            "points_xyz": points,
+        })
 
     def handle_plan(self) -> None:
         try:
