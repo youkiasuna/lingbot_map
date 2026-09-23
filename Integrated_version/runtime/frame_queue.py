@@ -3,14 +3,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import Lock
 
+from schemas import FrameRecord
+
+
 @dataclass(frozen=True)
 class FramePacket:
     sequence: int
     frame: object
     timestamp_unix: float
 
+    def to_record(self, *, source: str = "camera") -> FrameRecord:
+        """Return the shared metadata record without copying the image."""
+        return FrameRecord(
+            frame_id=int(self.sequence),
+            timestamp_ns=int(float(self.timestamp_unix) * 1_000_000_000),
+            source=source,
+        )
+
+
 class LatestFrameQueue:
     """Keep only the newest frame and count stale frames dropped."""
+
     def __init__(self, maxsize: int = 1) -> None:
         if maxsize <= 0:
             raise ValueError("maxsize must be positive")
