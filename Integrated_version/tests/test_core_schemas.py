@@ -10,6 +10,7 @@ from Integrated_version.schemas import (
     FrameRecord,
     LocalizationResult,
     MapStatusRecord,
+    MappingWindowRecord,
     NavigationCommand,
     PointCloudRecord,
     PoseRecord,
@@ -75,6 +76,25 @@ class CoreSchemaTests(unittest.TestCase):
         self.assertFalse(cloud.has_rgb)
         self.assertEqual(command.status, "safety_stop")
         self.assertEqual(command.source, "dry_run")
+
+    def test_mapping_window_record_contains_nested_metadata(self):
+        record = MappingWindowRecord(
+            window_id="window_000000_000009",
+            start_frame=0,
+            end_frame=9,
+            backend="lingbot_map_streaming",
+            frame_records=[FrameRecord(0, 123, CAMERA_FRAME)],
+            pointcloud_record=PointCloudRecord(
+                points_file="in_memory_world_points",
+                point_count=5,
+                map_version=0,
+                source_frames=list(range(10)),
+            ),
+        )
+        payload = record.to_dict()
+        self.assertEqual(payload["window_id"], "window_000000_000009")
+        self.assertEqual(payload["frame_records"][0]["frame_id"], 0)
+        self.assertEqual(payload["pointcloud_record"]["point_count"], 5)
 
     def test_navigation_command_adapts_existing_twist_shape(self):
         class ExistingTwist:
