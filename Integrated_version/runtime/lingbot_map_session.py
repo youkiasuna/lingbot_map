@@ -151,6 +151,8 @@ class LingBotMapSession:
             "inference_ms": inference_ms,
             "total_ms": round((time.perf_counter() - started) * 1000.0, 3),
             "device": str(self.device),
+            "rgb_available": False,
+            "rgb_source": None,
             "timings_ms": {
                 "image_prepare": image_prepare_ms,
                 "model_load": self.model_load_ms,
