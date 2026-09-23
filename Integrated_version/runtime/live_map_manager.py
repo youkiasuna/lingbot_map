@@ -10,6 +10,11 @@ from typing import Iterable, Sequence
 
 import numpy as np
 
+try:
+    from schemas import MapStatusRecord, PointCloudRecord, PoseRecord
+except ImportError:  # Support direct execution from the Integrated_version tree.
+    from Integrated_version.schemas import MapStatusRecord, PointCloudRecord, PoseRecord
+
 @dataclass(frozen=True)
 class CoordinateConvention:
     vertical_axis: str = "-y"
@@ -52,6 +57,14 @@ class LiveMapManager:
         quality = MapQuality(int(frame_count), int(keyframe_count), len(points), float(tracked_ratio), bool(navigable))
         self.map_version += 1
         points_array = np.asarray(points, dtype=np.float32)
+        pointcloud_record = PointCloudRecord(
+            points_file="live_points.json" if self.publish_json_points else "live_points.npz",
+            point_count=len(points),
+            map_version=self.map_version,
+            coordinate_frame="reconstruction",
+            timestamp_ns=time.time_ns(),
+            has_rgb=False,
+        )
         self._write_npz("live_points.npz", map_version=self.map_version, points_xyz=points_array)
         if self.publish_json_points:
             self._write_json("live_points.json", {"map_version": self.map_version, "points_xyz": points})
@@ -61,12 +74,21 @@ class LiveMapManager:
             "updated_at_unix": time.time(),
             "coordinate_convention": asdict(self.convention),
             "quality": asdict(quality),
+            "record": pointcloud_record.to_dict(),
         })
         self._status.update({"map_ready": True, "map_version": self.map_version, "pointcloud_file": "live_points.json" if self.publish_json_points else "live_points.npz"})
         self.publish_status()
         return True
 
     def publish_pose(self, position_xyz: Sequence[float] | None, yaw_deg: float | None, *, confidence: float, status: str, timestamp_unix: float | None = None) -> None:
+        pose_timestamp = time.time_ns() if timestamp_unix is None else int(float(timestamp_unix) * 1_000_000_000)
+        pose_record = PoseRecord(
+            position_xyz=None if position_xyz is None else [float(v) for v in position_xyz],
+            yaw_deg=None if yaw_deg is None else float(yaw_deg),
+            coordinate_frame="reconstruction",
+            timestamp_ns=pose_timestamp,
+            confidence=float(confidence),
+        )
         self._write_json("live_pose.json", {
             "schema_version": 1,
             "timestamp_unix": time.time() if timestamp_unix is None else float(timestamp_unix),
@@ -76,6 +98,7 @@ class LiveMapManager:
             "status": str(status),
             "map_version": self.map_version,
             "coordinate_convention": asdict(self.convention),
+            "record": pose_record.to_dict(),
         })
 
     def publish_path(self, waypoints_xz: Iterable[Sequence[float]]) -> None:
@@ -87,11 +110,23 @@ class LiveMapManager:
 
     def publish_status(self, **fields: object) -> None:
         self._status.update(fields)
+        status_record = MapStatusRecord(
+            map_version=self.map_version,
+            map_ready=bool(self._status.get("map_ready", False)),
+            mode=str(self._status.get("mode", "MAPPING")),
+            localization_status=str(self._status.get("localization_status", "unavailable")),
+            pointcloud_file=self._status.get("pointcloud_file"),
+            viewer_pointcloud=self._status.get("viewer_pointcloud"),
+            viewer_pose=self._status.get("viewer_pose"),
+            viewer_path=self._status.get("viewer_path"),
+            timestamp_ns=time.time_ns(),
+        )
         self._write_json("live_status.json", {
             "schema_version": 1,
             "timestamp_unix": time.time(),
             "map_version": self.map_version,
             "coordinate_convention": asdict(self.convention),
+            "record": status_record.to_dict(),
             **self._status,
         })
 
