@@ -84,7 +84,7 @@ def main() -> int:
     processed = 0
     started = time.perf_counter()
     last_log = 0.0
-    print(json.dumps({"event": "online_runtime_started", "url": args.url, "queue_size": args.queue_size, "mapping_dir": str(args.mapping_dir), "live_map_dir": str(args.live_map_dir), "dry_run": True}), flush=True)
+    print(json.dumps({"event": "online_runtime_started", "url": args.url, "queue_size": args.queue_size, "mapping_dir": str(args.mapping_dir), "live_map_dir": str(args.live_map_dir), "timestamp_source": "arrival", "camera_capture_timestamp_available": False, "dry_run": True}), flush=True)
 
     try:
         while not stop_event.is_set() and (args.max_frames == 0 or processed < args.max_frames):
@@ -118,7 +118,7 @@ def main() -> int:
         reader_thread.join(timeout=1.0)
         adapter.stop()
         capture.release()
-        live_manager.publish_status(mode="STOPPED", reader_error=reader_error[0] if reader_error else None, processed_frames=processed, dropped_frames=queue.dropped_count)
+        live_manager.publish_status(mode="STOPPED", reader_error=reader_error[0] if reader_error else None, processed_frames=processed, dropped_frames=queue.dropped_count, timestamp_source="arrival", camera_capture_timestamp_available=False)
     return 0
 
 
