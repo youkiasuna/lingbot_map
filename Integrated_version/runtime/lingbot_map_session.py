@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 import torch
 
-from experiments.run_lingbot_mapping import (
+from runtime.rgb_pointcloud import flatten_colored_world_points\nfrom experiments.run_lingbot_mapping import (
     as_numpy,
     export_preprocessed_images,
     load_lingbot_demo,
@@ -127,8 +127,19 @@ class LingBotMapSession:
         if points_value is None:
             points_value = self.demo._get_world_points(predictions)
         points = np.asarray(points_value)
-        points = points.reshape(-1, 3)
-        points = points[np.isfinite(points).all(axis=1)]
+        colors_rgb = None
+        if self.config.extract_rgb:
+            images_rgb = (
+                images_cpu.detach()
+                .cpu()
+                .permute(0, 2, 3, 1)
+                .numpy()
+                * 255.0
+            ).clip(0, 255).astype(np.uint8)
+            points, colors_rgb = flatten_colored_world_points(points, images_rgb)
+        else:
+            points = points.reshape(-1, 3)
+            points = points[np.isfinite(points).all(axis=1)]
         point_extract_ms = round((time.perf_counter() - point_extract_started) * 1000.0, 3)
         archive = None
         metadata = None
