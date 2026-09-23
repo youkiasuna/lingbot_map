@@ -76,6 +76,8 @@ class CoreSchemaTests(unittest.TestCase):
         self.assertFalse(cloud.has_rgb)
         self.assertIsNone(cloud.colors_file)
         self.assertIsNone(cloud.color_format)
+        self.assertEqual(cloud.registration_method, "none")
+        self.assertEqual(cloud.registration_status, "not_applied")
         self.assertEqual(command.status, "safety_stop")
         self.assertEqual(command.source, "dry_run")
 
