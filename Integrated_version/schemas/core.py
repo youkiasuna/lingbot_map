@@ -73,6 +73,13 @@ class PointCloudRecord:
     color_format: str | None = None
     schema_version: ClassVar[int] = SCHEMA_VERSION
 
+    def __post_init__(self) -> None:
+        has_color_metadata = self.colors_file is not None or self.color_format is not None
+        if self.has_rgb and not (self.colors_file and self.color_format):
+            raise ValueError("RGB point clouds require colors_file and color_format")
+        if not self.has_rgb and has_color_metadata:
+            raise ValueError("colors_file and color_format require has_rgb=True")
+
     def to_dict(self) -> dict[str, Any]:
         return _record_dict(self)
 
