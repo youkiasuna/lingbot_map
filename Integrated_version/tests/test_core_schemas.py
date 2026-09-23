@@ -3,6 +3,10 @@ import tempfile
 from pathlib import Path
 
 from Integrated_version.schemas import (
+    CAMERA_FRAME,
+    NAVIGATION_XZ_FRAME,
+    RECONSTRUCTION_FRAME,
+    TIMESTAMP_ARRIVAL,
     FrameRecord,
     LocalizationResult,
     MapStatusRecord,
@@ -18,7 +22,7 @@ class CoreSchemaTests(unittest.TestCase):
         pose = PoseRecord(
             position_xyz=[1.0, 2.0, 3.0],
             rotation_quaternion_xyzw=[0.0, 0.0, 0.0, 1.0],
-            coordinate_frame="reconstruction",
+            coordinate_frame=RECONSTRUCTION_FRAME,
         )
         result = LocalizationResult(
             query_id="query_000025",
@@ -33,7 +37,12 @@ class CoreSchemaTests(unittest.TestCase):
 
         self.assertEqual(payload["schema_version"], 1)
         self.assertEqual(payload["pose"]["position_xyz"], [1.0, 2.0, 3.0])
-        self.assertEqual(payload["pose"]["coordinate_frame"], "reconstruction")
+        self.assertEqual(payload["pose"]["coordinate_frame"], RECONSTRUCTION_FRAME)
+
+    def test_coordinate_and_timestamp_constants_are_explicit(self):
+        self.assertEqual(CAMERA_FRAME, "camera")
+        self.assertEqual(NAVIGATION_XZ_FRAME, "navigation_xz")
+        self.assertEqual(TIMESTAMP_ARRIVAL, "arrival")
 
     def test_localization_record_contains_quality_metrics(self):
         result = LocalizationResult(
@@ -53,7 +62,7 @@ class CoreSchemaTests(unittest.TestCase):
         self.assertIsNone(payload["reprojection_error_px"])
 
     def test_defaults_are_safe_for_live_pipeline(self):
-        frame = FrameRecord(frame_id=0, timestamp_ns=123, source="rtsp")
+        frame = FrameRecord(frame_id=0, timestamp_ns=123, source=CAMERA_FRAME)
         cloud = PointCloudRecord(
             points_file="live_points.npz", point_count=0, map_version=1
         )
@@ -62,6 +71,7 @@ class CoreSchemaTests(unittest.TestCase):
         )
 
         self.assertIsNone(frame.image_path)
+        self.assertEqual(frame.timestamp_source, TIMESTAMP_ARRIVAL)
         self.assertFalse(cloud.has_rgb)
         self.assertEqual(command.status, "safety_stop")
         self.assertEqual(command.source, "dry_run")
