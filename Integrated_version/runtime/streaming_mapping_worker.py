@@ -112,4 +112,7 @@ class StreamingMappingWorker:
         result["window_id"] = window_id
         result["start_sequence"] = packets[0].sequence
         result["end_sequence"] = packets[-1].sequence
+        result["frame_records"] = [
+            packet.to_record(source="camera").to_dict() for packet in packets
+        ]
         self.on_result(result)
