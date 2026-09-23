@@ -141,3 +141,23 @@ class MapStatusRecord:
 
     def to_dict(self) -> dict[str, Any]:
         return _record_dict(self)
+
+
+@dataclass(slots=True)
+class MappingWindowRecord:
+    """Metadata for one bounded mapping inference window."""
+
+    window_id: str
+    start_frame: int
+    end_frame: int
+    backend: str
+    latency_ms: float = 0.0
+    frame_records: list[FrameRecord] = field(default_factory=list)
+    pointcloud_record: PointCloudRecord | None = None
+    schema_version: ClassVar[int] = SCHEMA_VERSION
+
+    def to_dict(self) -> dict[str, Any]:
+        data = _record_dict(self)
+        if self.pointcloud_record is not None:
+            data["pointcloud_record"] = self.pointcloud_record.to_dict()
+        return data
