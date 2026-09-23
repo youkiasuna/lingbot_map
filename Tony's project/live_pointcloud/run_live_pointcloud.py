@@ -23,6 +23,8 @@ import sys
 import time
 import threading
 import webbrowser
+import json
+import urllib.request
 from pathlib import Path
 
 # Reduce CUDA allocator fragmentation. Must be set before importing torch.
@@ -41,6 +43,7 @@ if str(LINGBOT_ROOT) not in sys.path:
     sys.path.insert(0, str(LINGBOT_ROOT))
 
 from lingbot_map.models.gct_stream import GCTStream
+from lingbot_map.utils.pose_enc import pose_encoding_to_extri_intri
 
 try:
     import viser
@@ -66,6 +69,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--fps", type=float, default=5.0, help="Frames sent to the model per second; high-quality default keeps more overlap")
     parser.add_argument("--port", type=int, default=8080, help="Live 3D viewer web port")
+    parser.add_argument(
+        "--imu-url",
+        default=None,
+        help="phyphox remote URL, e.g. http://192.168.1.123:8080. If omitted, IMU correction is disabled.",
+    )
+    parser.add_argument(
+        "--imu-axis-map",
+        default="x,-y,-z",
+        help="Phone->camera axis map. Default matches a portrait Samsung back camera: x,-y,-z.",
+    )
     parser.add_argument("--no-browser", action="store_true", help="Do not automatically open the viewer in a browser")
     parser.add_argument("--num-scale-frames", type=int, default=8)
     parser.add_argument("--image-size", type=int, default=518)
@@ -171,6 +184,110 @@ def load_model(args: argparse.Namespace, device: torch.device) -> GCTStream:
 
     model = model.to(device).eval()
     return model
+
+
+class PhyphoxGyro:
+    """Read Samsung/Android gyroscope samples from phyphox and integrate rotation."""
+
+    def __init__(self, base_url: str, axis_map: str):
+        self.base_url = base_url.rstrip("/")
+        self.axis_matrix = self._parse_axis_map(axis_map)
+        self.rotation = np.eye(3, dtype=np.float64)
+        self.last_t = None
+        self.last_seen_t = -np.inf
+        self._check()
+
+    @staticmethod
+    def _parse_axis_map(spec: str) -> np.ndarray:
+        axes = {"x": np.array([1., 0., 0.]), "y": np.array([0., 1., 0.]), "z": np.array([0., 0., 1.])}
+        rows = []
+        for token in spec.lower().replace(" ", "").split(","):
+            sign = -1.0 if token.startswith("-") else 1.0
+            key = token.lstrip("+-")
+            if key not in axes:
+                raise ValueError("--imu-axis-map must look like x,-y,-z")
+            rows.append(sign * axes[key])
+        if len(rows) != 3:
+            raise ValueError("--imu-axis-map needs exactly three axes")
+        return np.stack(rows, axis=0)
+
+    def _json(self, path: str) -> dict:
+        with urllib.request.urlopen(self.base_url + path, timeout=2.0) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def _check(self) -> None:
+        cfg = self._json("/config")
+        names = {b.get("name") for b in cfg.get("buffers", [])}
+        required = {"gyr_time", "gyrX", "gyrY", "gyrZ"}
+        missing = required - names
+        if missing:
+            raise RuntimeError(
+                "phyphox must run the Gyroscope experiment; missing buffers: "
+                + ", ".join(sorted(missing))
+            )
+        print(f"IMU connected: {self.base_url} (phyphox gyroscope)", flush=True)
+
+    @staticmethod
+    def _values(payload: dict, name: str) -> list[float]:
+        item = payload.get("buffer", {}).get(name, payload.get(name, {}))
+        if isinstance(item, dict):
+            item = item.get("buffer", item.get("values", []))
+        return item if isinstance(item, list) else []
+
+    def reset(self) -> None:
+        self.rotation = np.eye(3, dtype=np.float64)
+        data = self._json("/get?gyr_time=full&gyrX=full&gyrY=full&gyrZ=full")
+        ts = self._values(data, "gyr_time")
+        self.last_seen_t = float(ts[-1]) if ts else -np.inf
+        self.last_t = self.last_seen_t if np.isfinite(self.last_seen_t) else None
+        print("IMU orientation baseline reset.", flush=True)
+
+    def update(self) -> np.ndarray:
+        data = self._json("/get?gyr_time=full&gyrX=full&gyrY=full&gyrZ=full")
+        ts = self._values(data, "gyr_time")
+        xs = self._values(data, "gyrX")
+        ys = self._values(data, "gyrY")
+        zs = self._values(data, "gyrZ")
+        n = min(len(ts), len(xs), len(ys), len(zs))
+        for i in range(n):
+            t = float(ts[i])
+            if t <= self.last_seen_t:
+                continue
+            w_phone = np.array([xs[i], ys[i], zs[i]], dtype=np.float64)
+            w_cam = self.axis_matrix @ w_phone
+            if self.last_t is not None:
+                dt = t - self.last_t
+                if 0.0 < dt < 0.2:
+                    dR, _ = cv2.Rodrigues((w_cam * dt).reshape(3, 1))
+                    self.rotation = self.rotation @ dR
+            self.last_t = t
+            self.last_seen_t = t
+        return self.rotation.copy()
+
+
+def predicted_camera_c2w(output: dict, image_hw: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+    """Return LingBot predicted camera-to-world rotation and camera center for last frame."""
+    extrinsic, _ = pose_encoding_to_extri_intri(output["pose_enc"], image_hw)
+    ext = extrinsic[0, -1].detach().float().cpu().numpy()
+    r_w2c = ext[:3, :3]
+    t_w2c = ext[:3, 3]
+    r_c2w = r_w2c.T
+    center = -r_c2w @ t_w2c
+    return r_c2w.astype(np.float64), center.astype(np.float64)
+
+
+def correct_points_with_imu(
+    points: np.ndarray,
+    predicted_r_c2w: np.ndarray,
+    camera_center: np.ndarray,
+    initial_r_c2w: np.ndarray,
+    imu_delta: np.ndarray,
+) -> np.ndarray:
+    """Keep LingBot translation/depth, but replace accumulated orientation with IMU relative rotation."""
+    desired_r_c2w = initial_r_c2w @ imu_delta
+    local = (points.astype(np.float64) - camera_center) @ predicted_r_c2w
+    corrected = local @ desired_r_c2w.T + camera_center
+    return corrected.astype(np.float32)
 
 
 def prediction_to_points(
@@ -359,6 +476,13 @@ def main() -> int:
 
     model.clean_kv_cache()
     accumulator = PointAccumulator(args.max_points)
+    imu = None
+    imu_initial_r = None
+    if args.imu_url:
+        try:
+            imu = PhyphoxGyro(args.imu_url, args.imu_axis_map)
+        except Exception as exc:
+            raise SystemExit(f"IMU connection failed: {exc}") from exc
 
     viewer = LiveWebViewer(args.port)
     viewer_url = f"http://127.0.0.1:{args.port}"
@@ -385,6 +509,11 @@ def main() -> int:
         f"Collecting {args.num_scale_frames} initial scale frames, then true frame-by-frame KV-cache streaming.",
         flush=True,
     )
+    if imu is not None:
+        print("IMU rotation correction: ON (LingBot translation + Samsung gyro rotation)", flush=True)
+        print("Keep the phone still during the initial scale frames; baseline resets after them.", flush=True)
+    else:
+        print("IMU rotation correction: OFF", flush=True)
     print("Press Ctrl+C to stop.", flush=True)
 
     initial_frames: list[torch.Tensor] = []
@@ -426,14 +555,15 @@ def main() -> int:
                     device,
                     args.num_scale_frames,
                 )
-                pts, cols = prediction_to_points(
-                    model,
-                    output,
-                    block,
-                    args.conf_threshold,
-                    args.sample_stride,
-                )
-                accumulator.add(pts, cols)
+                # Scale frames initialize LingBot geometry/KV cache only.
+                # Do not accumulate them: their historical IMU orientations are not synchronized.
+                if imu is not None:
+                    imu_initial_r, _ = predicted_camera_c2w(
+                        output, tuple(block.shape[-2:])
+                    )
+                    imu.reset()
+                pts = np.empty((0, 3), dtype=np.float32)
+                cols = np.empty((0, 3), dtype=np.uint8)
                 frame_index = args.num_scale_frames
                 del output, block
             else:
@@ -465,6 +595,17 @@ def main() -> int:
                     args.conf_threshold,
                     args.sample_stride,
                 )
+                if imu is not None and imu_initial_r is not None and len(pts):
+                    try:
+                        imu_delta = imu.update()
+                        pred_r, camera_center = predicted_camera_c2w(
+                            output, tuple(block.shape[-2:])
+                        )
+                        pts = correct_points_with_imu(
+                            pts, pred_r, camera_center, imu_initial_r, imu_delta
+                        )
+                    except Exception as exc:
+                        print(f"WARNING: IMU update failed; using LingBot pose for this frame: {exc}", flush=True)
                 accumulator.add(pts, cols)
                 frame_index += 1
                 del output, block
