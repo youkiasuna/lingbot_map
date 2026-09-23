@@ -79,6 +79,28 @@ class CoreSchemaTests(unittest.TestCase):
         self.assertEqual(command.status, "safety_stop")
         self.assertEqual(command.source, "dry_run")
 
+    def test_rgb_metadata_must_be_consistent(self):
+        with self.assertRaises(ValueError):
+            PointCloudRecord("live_points.npz", 10, 1, has_rgb=True)
+        with self.assertRaises(ValueError):
+            PointCloudRecord(
+                "live_points.npz",
+                10,
+                1,
+                colors_file="live_colors.npy",
+                color_format="uint8_rgb",
+            )
+
+        record = PointCloudRecord(
+            "live_points.npz",
+            10,
+            1,
+            has_rgb=True,
+            colors_file="live_colors.npy",
+            color_format="uint8_rgb",
+        )
+        self.assertTrue(record.has_rgb)
+
     def test_mapping_window_record_contains_nested_metadata(self):
         record = MappingWindowRecord(
             window_id="window_000000_000009",
