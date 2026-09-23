@@ -125,16 +125,18 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-function showStatus(status, map) {
+function showStatus(status, map, pointcloudRecord, statusRecord) {
   const quality = map && map.quality ? map.quality : {};
-  modeText.textContent = status && status.mode ? status.mode : "等待";
-  versionText.textContent = map && map.map_version != null ? map.map_version : "-";
-  pointsText.textContent = quality.point_count != null ? quality.point_count : "-";
-  windowsText.textContent = status && status.processed_windows != null ? status.processed_windows : "-";
-  framesText.textContent = status && status.submitted_frames != null ? status.submitted_frames : "-";
-  windowText.textContent = status && status.mapping_window_id ? status.mapping_window_id : "-";
-  errorText.textContent = status && (status.worker_error || status.reader_error) ? (status.worker_error || status.reader_error) : "無";
-  stateText.textContent = status && status.mode === "MAPPING" ? "即時建圖中" : "等待資料";
+  const mapRecord = pointcloudRecord || (map && map.record) || {};
+  const liveRecord = statusRecord || (status && status.record) || {};
+  modeText.textContent = liveRecord.mode || status.mode || "等待";
+  versionText.textContent = mapRecord.map_version ?? map?.map_version ?? "-";
+  pointsText.textContent = mapRecord.point_count ?? quality.point_count ?? "-";
+  windowsText.textContent = status.processed_windows ?? "-";
+  framesText.textContent = status.submitted_frames ?? "-";
+  windowText.textContent = status.mapping_window_id ?? "-";
+  errorText.textContent = status.worker_error || status.reader_error || "無";
+  stateText.textContent = liveRecord.mode === "MAPPING" ? "即時建圖中" : "等待資料";
 }
 
 async function refresh() {
@@ -143,8 +145,13 @@ async function refresh() {
       getJson("/api/live/status"),
       getJson("/api/live/map"),
     ]);
-    const status = statusResponse.status === "ok" ? statusResponse.status : statusResponse;
-    showStatus(status, mapResponse.map);
+    const status = statusResponse.status || {};
+    showStatus(
+      status,
+      mapResponse.map,
+      mapResponse.pointcloud_record,
+      mapResponse.status_record
+    );
     replacePointCloud(mapResponse.points_xyz || []);
   } catch (error) {
     stateText.textContent = "等待 live mapping";
