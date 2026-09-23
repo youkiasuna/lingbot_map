@@ -7,6 +7,12 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+from schemas import (
+    CAMERA_FRAME,
+    MappingWindowRecord,
+    PointCloudRecord,
+    FrameRecord,
+)
 from runtime.frame_queue import FramePacket
 
 if TYPE_CHECKING:
@@ -109,10 +115,31 @@ class StreamingMappingWorker:
                         raise OSError(f"failed to write {image_path}")
                 result = self.session.infer_image_folder(image_dir, Path(output_root))
 
+        frame_records = [
+            packet.to_record(source=CAMERA_FRAME) for packet in packets
+        ]
         result["window_id"] = window_id
         result["start_sequence"] = packets[0].sequence
         result["end_sequence"] = packets[-1].sequence
-        result["frame_records"] = [
-            packet.to_record(source="camera").to_dict() for packet in packets
-        ]
+        result["frame_records"] = [record.to_dict() for record in frame_records]
+
+        points = result.get("points_xyz")
+        pointcloud_record = None
+        if points is not None:
+            pointcloud_record = PointCloudRecord(
+                points_file="in_memory_world_points",
+                point_count=int(len(points)),
+                map_version=0,
+                source_frames=[record.frame_id for record in frame_records],
+                has_rgb=False,
+            )
+        result["window_record"] = MappingWindowRecord(
+            window_id=window_id,
+            start_frame=packets[0].sequence,
+            end_frame=packets[-1].sequence,
+            backend="lingbot_map_streaming",
+            latency_ms=float(result.get("timings_ms", {}).get("session_total", 0.0)),
+            frame_records=frame_records,
+            pointcloud_record=pointcloud_record,
+        ).to_dict()
         self.on_result(result)
