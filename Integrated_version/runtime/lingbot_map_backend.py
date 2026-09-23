@@ -26,6 +26,7 @@ class LingBotMapBackendConfig:
     keep_window_packages: bool = True
     persistent_session: bool = False
     save_window_archives: bool = False
+    extract_rgb: bool = False
 
 
 class LingBotMapBackend:
@@ -46,6 +47,7 @@ class LingBotMapBackend:
             camera_num_iterations=config.camera_num_iterations,
             use_sdpa=config.use_sdpa,
             write_archive=config.save_window_archives,
+            extract_rgb=config.extract_rgb,
         )) if config.persistent_session else None
         self.image_paths = sorted(
             path for path in config.source_dir.iterdir()
