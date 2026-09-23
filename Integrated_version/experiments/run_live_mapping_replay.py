@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--keep-window-packages", action="store_true", help="Keep per-window LingBot predictions.npz packages")
     parser.add_argument("--persistent-worker", action="store_true", help="Keep one LingBot model session for all windows")
     parser.add_argument("--save-window-archives", action="store_true", help="Keep full per-window predictions.npz archives in LingBot persistent mode")
+    parser.add_argument("--extract-rgb", action="store_true", help="Extract aligned RGB colors in the LingBot backend")
     return parser.parse_args()
 
 
@@ -57,6 +58,7 @@ def main() -> int:
             keep_window_packages=args.keep_window_packages,
             persistent_session=args.persistent_worker,
             save_window_archives=args.save_window_archives,
+            extract_rgb=args.extract_rgb,
         ))
     fusion = IncrementalVoxelMap(voxel_size_m=args.voxel_size_m, max_points=args.max_points)
     manager = LiveMapManager(args.output_dir, max_points=args.max_points)
@@ -115,6 +117,7 @@ def main() -> int:
         "benchmark_label": args.benchmark_label,
         "window_size": args.window_size,
         "process_every": args.process_every,
+        "extract_rgb": args.extract_rgb,
         "map_updates": len(records),
         "total_latency_ms": round((time.perf_counter() - started) * 1000.0, 3),
         "latency_mean_ms": round(statistics.fmean(latency_samples), 3) if latency_samples else None,
