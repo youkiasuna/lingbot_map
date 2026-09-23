@@ -69,6 +69,8 @@ class PointCloudRecord:
     timestamp_ns: int | None = None
     source_frames: list[int] = field(default_factory=list)
     has_rgb: bool = False
+    colors_file: str | None = None
+    color_format: str | None = None
     schema_version: ClassVar[int] = SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
