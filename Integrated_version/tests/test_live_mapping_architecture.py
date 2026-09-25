@@ -18,6 +18,26 @@ class LiveMappingArchitectureTests(unittest.TestCase):
             self.assertEqual(payload["map_version"].item(), 1)
             self.assertEqual(payload["points_xyz"].shape, (2, 3))
 
+    def test_rgb_snapshot_keeps_point_color_alignment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = LiveMapManager(tmp, max_points=2)
+            colors = np.asarray([[10, 20, 30], [40, 50, 60], [70, 80, 90]], dtype=np.uint8)
+            self.assertTrue(manager.publish_map_update(
+                [[0, 0, 0], [1, 0, 1], [2, 0, 2]],
+                colors_rgb=colors,
+                frame_count=3,
+                keyframe_count=3,
+                tracked_ratio=1.0,
+                navigable=True,
+            ))
+            with np.load(Path(tmp) / "live_points.npz") as payload:
+                self.assertEqual(payload["points_xyz"].shape, (2, 3))
+                self.assertEqual(payload["colors_rgb"].shape, (2, 3))
+                self.assertEqual(payload["colors_rgb"][0].tolist(), [10, 20, 30])
+            record = json.loads((Path(tmp) / "live_map.json").read_text())
+            self.assertTrue(record["record"]["has_rgb"])
+            self.assertEqual(record["record"]["color_format"], "rgb_uint8")
+
     def test_invalid_update_keeps_previous_map(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manager = LiveMapManager(tmp)
