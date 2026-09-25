@@ -79,6 +79,10 @@ have identical lengths and use the declared `rgb_uint8` format. The live map
 API exposes the aligned arrays as `points_xyz` and `colors_rgb`; the web
 viewer uses RGB when available and keeps the height-based fallback otherwise.
 
+The web viewer also polls `/api/live/pose`. A red pose marker is shown
+only when `live_pose.json.position_xyz` contains three finite coordinates. A
+missing, rejected, or stale pose does not create a marker.
+
 Localization and navigation are downstream consumers:
 
 ```text
