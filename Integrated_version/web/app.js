@@ -129,9 +129,16 @@ function replacePointCloud(points, rgbColors = []) {
 function updatePoseMarker(posePayload) {
   if (!poseMarker) return;
   const position = posePayload && posePayload.position_xyz;
+  const status = String((posePayload && posePayload.status) || "").toLowerCase();
+  const timestamp = Number(posePayload && posePayload.timestamp_unix);
+  const age = Number.isFinite(timestamp) ? (Date.now() / 1000) - timestamp : Infinity;
+  const invalidStatuses = new Set(["lost", "low_confidence", "rejected", "stale", "missing"]);
   const valid = Array.isArray(position)
     && position.length >= 3
-    && position.slice(0, 3).every(Number.isFinite);
+    && position.slice(0, 3).every(Number.isFinite)
+    && !invalidStatuses.has(status)
+    && age >= -5
+    && age <= 10;
   poseMarker.visible = valid;
   if (valid) {
     poseMarker.position.set(position[0], position[1], position[2]);
