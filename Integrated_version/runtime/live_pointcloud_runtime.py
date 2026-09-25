@@ -97,10 +97,13 @@ def main() -> int:
     reconnects = 0
 
     def on_result(result: dict) -> None:
-        fusion_result = fusion.update(result["points_xyz"])
+        fusion_result = fusion.update(
+            result["points_xyz"],
+            colors_rgb=result.get("colors_rgb"),
+        )
         live_manager.publish_map_update(
             fusion.points_xyz,
-            colors_rgb=result.get("colors_rgb"),
+            colors_rgb=fusion.colors_rgb,
             frame_count=int(result["end_sequence"]) + 1,
             keyframe_count=args.window_size,
             tracked_ratio=1.0,
@@ -115,8 +118,8 @@ def main() -> int:
             mapping_map_version=fusion_result.map_version,
             mapping_input_points=fusion_result.input_points,
             mapping_fused_points=fusion_result.fused_points,
-            rgb_available=bool(result.get("rgb_available", False)),
-            rgb_source=result.get("rgb_source"),
+            rgb_available=fusion.colors_rgb is not None,
+            rgb_source=result.get("rgb_source") if fusion.colors_rgb is not None else None,
             mapping_timings_ms=result.get("timings_ms", {}),
             worker_error=None,
         )
