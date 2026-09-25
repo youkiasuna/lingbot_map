@@ -13,6 +13,7 @@ let scene;
 let camera;
 let renderer;
 let pointCloud;
+let poseMarker;
 let yaw = 0.7;
 let pitch = 0.45;
 let distance = 6;
@@ -40,6 +41,12 @@ function initViewer() {
   viewer.appendChild(renderer.domElement);
   scene.add(new THREE.GridHelper(10, 20, 0x4a6872, 0x26383e));
   scene.add(new THREE.AxesHelper(1));
+  poseMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 16, 12),
+    new THREE.MeshBasicMaterial({ color: 0xff5533 })
+  );
+  poseMarker.visible = false;
+  scene.add(poseMarker);
   resize();
   viewer.addEventListener("pointerdown", (event) => {
     dragging = true;
@@ -119,6 +126,18 @@ function replacePointCloud(points, rgbColors = []) {
   distance = Math.max(span * 1.8, 1);
 }
 
+function updatePoseMarker(posePayload) {
+  if (!poseMarker) return;
+  const position = posePayload && posePayload.position_xyz;
+  const valid = Array.isArray(position)
+    && position.length >= 3
+    && position.slice(0, 3).every(Number.isFinite);
+  poseMarker.visible = valid;
+  if (valid) {
+    poseMarker.position.set(position[0], position[1], position[2]);
+  }
+}
+
 function animate() {
   requestAnimationFrame(animate);
   if (!renderer) return;
@@ -149,9 +168,10 @@ function showStatus(status, map, pointcloudRecord, statusRecord) {
 
 async function refresh() {
   try {
-    const [statusResponse, mapResponse] = await Promise.all([
+    const [statusResponse, mapResponse, poseResponse] = await Promise.all([
       getJson("/api/live/status"),
       getJson("/api/live/map"),
+      getJson("/api/live/pose"),
     ]);
     const status = statusResponse.status || {};
     showStatus(
@@ -161,6 +181,7 @@ async function refresh() {
       mapResponse.status_record
     );
     replacePointCloud(mapResponse.points_xyz || [], mapResponse.colors_rgb || []);
+    updatePoseMarker(poseResponse.pose || null);
   } catch (error) {
     stateText.textContent = "等待 live mapping";
     errorText.textContent = error.message;
