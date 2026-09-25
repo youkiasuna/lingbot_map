@@ -17,6 +17,19 @@ class IncrementalMappingTests(unittest.TestCase):
         self.assertEqual(second.map_version, 2)
         self.assertEqual(second.fused_points, 3)
 
+    def test_voxel_fusion_keeps_rgb_aligned(self) -> None:
+        fusion = IncrementalVoxelMap(voxel_size_m=0.1, max_points=100)
+        fusion.update(
+            np.array([[0, 0, 0], [1, 0, 1]], dtype=np.float32),
+            colors_rgb=np.array([[10, 20, 30], [40, 50, 60]], dtype=np.uint8),
+        )
+        fusion.update(
+            np.array([[0.01, 0, 0.01], [2, 0, 2]], dtype=np.float32),
+            colors_rgb=np.array([[11, 21, 31], [70, 80, 90]], dtype=np.uint8),
+        )
+        self.assertEqual(fusion.colors_rgb.shape, (3, 3))
+        self.assertEqual(fusion.colors_rgb[0].tolist(), [11, 21, 31])
+
     def test_replay_windows_are_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             package = Path(tmp) / "predictions.npz"
