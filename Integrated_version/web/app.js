@@ -8,6 +8,7 @@ const windowsText = document.getElementById("windowsText");
 const framesText = document.getElementById("framesText");
 const windowText = document.getElementById("windowText");
 const errorText = document.getElementById("errorText");
+const frameView = document.getElementById("frameView");
 
 let scene;
 let camera;
@@ -189,6 +190,10 @@ async function refresh() {
     );
     replacePointCloud(mapResponse.points_xyz || [], mapResponse.colors_rgb || []);
     updatePoseMarker(poseResponse.pose || null);
+    if (frameView && status.camera_connected !== false) {
+      frameView.src = "/api/live/frame.jpg?t=" + Date.now();
+      frameView.style.display = "block";
+    }
   } catch (error) {
     stateText.textContent = "等待 live mapping";
     errorText.textContent = error.message;
