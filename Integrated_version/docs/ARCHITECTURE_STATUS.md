@@ -64,6 +64,19 @@ FrameRecord
   -> viewer
 ```
 
+Optional color path:
+  
+```text
+LingBot-MAP session (--extract-rgb)
+  -> colors_rgb aligned with points_xyz
+  -> LiveMapManager
+  -> live_points.npz (points_xyz + colors_rgb)
+```
+
+The color path is disabled by default. Geometry-only live mapping remains the
+compatibility baseline. RGB data is valid only when the point and color arrays
+have identical lengths and use the declared `rgb_uint8` format.
+
 Localization and navigation are downstream consumers:
 
 ```text
