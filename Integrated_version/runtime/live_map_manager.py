@@ -45,15 +45,24 @@ class LiveMapManager:
     def map_ready(self) -> bool:
         return bool(self._status.get("map_ready", False))
 
-    def publish_map_update(self, points_xyz: Iterable[Sequence[float]], *, frame_count: int, keyframe_count: int, tracked_ratio: float, navigable: bool) -> bool:
-        points = [[float(v) for v in point[:3]] for point in points_xyz]
-        if any(len(point) != 3 for point in points):
+    def publish_map_update(self, points_xyz: Iterable[Sequence[float]], *, frame_count: int, keyframe_count: int, tracked_ratio: float, navigable: bool, colors_rgb: np.ndarray | None = None) -> bool:
+        points_array = np.asarray(list(points_xyz), dtype=np.float32)
+        if points_array.size == 0:
+            points_array = points_array.reshape(0, 3)
+        if points_array.ndim != 2 or points_array.shape[1] != 3:
             raise ValueError("every point must contain exactly three coordinates")
-        if not points or not navigable or not 0.0 <= tracked_ratio <= 1.0:
+        colors_array = None if colors_rgb is None else np.asarray(colors_rgb, dtype=np.uint8)
+        if colors_array is not None and (colors_array.ndim != 2 or colors_array.shape != (len(points_array), 3)):
+            raise ValueError("colors_rgb must have shape (point_count, 3)")
+        if len(points_array) == 0 or not navigable or not 0.0 <= tracked_ratio <= 1.0:
             return False
-        if len(points) > self.max_points:
-            step = max(1, len(points) // self.max_points)
-            points = points[::step][:self.max_points]
+        if len(points_array) > self.max_points:
+            step = max(1, len(points_array) // self.max_points)
+            indices = np.arange(0, len(points_array), step, dtype=np.int64)[:self.max_points]
+            points_array = points_array[indices]
+            if colors_array is not None:
+                colors_array = colors_array[indices]
+        points = points_array.tolist()
         quality = MapQuality(int(frame_count), int(keyframe_count), len(points), float(tracked_ratio), bool(navigable))
         self.map_version += 1
         points_array = np.asarray(points, dtype=np.float32)
@@ -63,9 +72,14 @@ class LiveMapManager:
             map_version=self.map_version,
             coordinate_frame="reconstruction",
             timestamp_ns=time.time_ns(),
-            has_rgb=False,
+            has_rgb=colors_array is not None,
+            colors_file="live_points.npz" if colors_array is not None else None,
+            color_format="rgb_uint8" if colors_array is not None else None,
         )
-        self._write_npz("live_points.npz", map_version=self.map_version, points_xyz=points_array)
+        arrays = {"map_version": self.map_version, "points_xyz": points_array}
+        if colors_array is not None:
+            arrays["colors_rgb"] = colors_array
+        self._write_npz("live_points.npz", **arrays)
         if self.publish_json_points:
             self._write_json("live_points.json", {"map_version": self.map_version, "points_xyz": points})
         self._write_json("live_map.json", {
@@ -76,7 +90,7 @@ class LiveMapManager:
             "quality": asdict(quality),
             "record": pointcloud_record.to_dict(),
         })
-        self._status.update({"map_ready": True, "map_version": self.map_version, "pointcloud_file": "live_points.json" if self.publish_json_points else "live_points.npz"})
+        self._status.update({"map_ready": True, "map_version": self.map_version, "pointcloud_file": "live_points.json" if self.publish_json_points else "live_points.npz", "rgb_available": colors_array is not None})
         self.publish_status()
         return True
 
