@@ -71,7 +71,7 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 
-function replacePointCloud(points) {
+function replacePointCloud(points, rgbColors = []) {
   if (!scene || !window.THREE) return;
   if (pointCloud) {
     scene.remove(pointCloud);
@@ -97,7 +97,15 @@ function replacePointCloud(points) {
   points.forEach((p, i) => {
     positions.set([(p[0] - center[0]), (p[1] - center[1]), (p[2] - center[2])], i * 3);
     const height = (p[1] - minY) / span;
-    colors.set([0.1 + height * 0.2, 0.65 + height * 0.25, 0.85], i * 3);
+    if (rgbColors.length === points.length && rgbColors[i] && rgbColors[i].length >= 3) {
+      colors.set([
+        rgbColors[i][0] / 255,
+        rgbColors[i][1] / 255,
+        rgbColors[i][2] / 255,
+      ], i * 3);
+    } else {
+      colors.set([0.1 + height * 0.2, 0.65 + height * 0.25, 0.85], i * 3);
+    }
   });
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -152,7 +160,7 @@ async function refresh() {
       mapResponse.pointcloud_record,
       mapResponse.status_record
     );
-    replacePointCloud(mapResponse.points_xyz || []);
+    replacePointCloud(mapResponse.points_xyz || [], mapResponse.colors_rgb || []);
   } catch (error) {
     stateText.textContent = "等待 live mapping";
     errorText.textContent = error.message;
