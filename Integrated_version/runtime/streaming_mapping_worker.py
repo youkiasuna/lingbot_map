@@ -131,7 +131,9 @@ class StreamingMappingWorker:
                 point_count=int(len(points)),
                 map_version=0,
                 source_frames=[record.frame_id for record in frame_records],
-                has_rgb=False,
+                has_rgb=bool(result.get("rgb_available", False)),
+                colors_file="in_memory_rgb" if result.get("rgb_available", False) else None,
+                color_format="rgb_uint8" if result.get("rgb_available", False) else None,
             )
         result["window_record"] = MappingWindowRecord(
             window_id=window_id,
