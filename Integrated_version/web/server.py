@@ -238,17 +238,31 @@ class NavigationHandler(BaseHTTPRequestHandler):
             self.send_json({"status": "missing", "map": None, "points_xyz": []})
             return
         points = []
+        colors_rgb = []
         path = self.live_dir / "live_points.npz"
         if np is not None and path.exists():
             try:
                 with np.load(path, allow_pickle=False) as archive:
-                    values = np.asarray(archive["points_xyz"], dtype=np.float32).reshape(-1, 3)
-                values = values[np.isfinite(values).all(axis=1)]
+                    raw_values = np.asarray(archive["points_xyz"], dtype=np.float32).reshape(-1, 3)
+                    raw_colors = None
+                    if "colors_rgb" in archive:
+                        candidate = np.asarray(archive["colors_rgb"], dtype=np.uint8).reshape(-1, 3)
+                        if len(candidate) == len(raw_values):
+                            raw_colors = candidate
+                valid = np.isfinite(raw_values).all(axis=1)
+                values = raw_values[valid]
+                color_values = None if raw_colors is None else raw_colors[valid]
                 if len(values) > 20000:
-                    values = values[::max(1, len(values) // 20000)][:20000]
+                    indices = np.arange(0, len(values), max(1, len(values) // 20000), dtype=np.int64)[:20000]
+                    values = values[indices]
+                    if color_values is not None:
+                        color_values = color_values[indices]
                 points = values.tolist()
+                if color_values is not None:
+                    colors_rgb = color_values.tolist()
             except (OSError, KeyError, ValueError):
                 points = []
+                colors_rgb = []
         self.send_json({
             "status": "ok",
             "map": metadata,
@@ -256,6 +270,7 @@ class NavigationHandler(BaseHTTPRequestHandler):
             "pointcloud_record": metadata.get("record"),
             "status_record": None if status is None else status.get("record"),
             "points_xyz": points,
+            "colors_rgb": colors_rgb,
         })
 
     def handle_plan(self) -> None:
