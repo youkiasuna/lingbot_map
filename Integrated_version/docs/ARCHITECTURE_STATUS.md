@@ -75,7 +75,9 @@ LingBot-MAP session (--extract-rgb)
 
 The color path is disabled by default. Geometry-only live mapping remains the
 compatibility baseline. RGB data is valid only when the point and color arrays
-have identical lengths and use the declared `rgb_uint8` format.
+have identical lengths and use the declared `rgb_uint8` format. The live map
+API exposes the aligned arrays as `points_xyz` and `colors_rgb`; the web
+viewer uses RGB when available and keeps the height-based fallback otherwise.
 
 Localization and navigation are downstream consumers:
 
