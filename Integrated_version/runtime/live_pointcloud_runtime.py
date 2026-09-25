@@ -35,6 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-reconnects", type=int, default=0)
     parser.add_argument("--voxel-size-m", type=float, default=0.03)
     parser.add_argument("--max-points", type=int, default=250000)
+    parser.add_argument("--extract-rgb", action="store_true", help="Persist aligned RGB colors in the live point-cloud snapshot")
     return parser.parse_args()
 
 
@@ -88,6 +89,7 @@ def main() -> int:
         model_path=args.model_path.resolve(),
         lingbot_root=args.lingbot_root.resolve(),
         write_archive=False,
+        extract_rgb=args.extract_rgb,
     ))
     stop_event = threading.Event()
     reader_error: list[str] = []
@@ -98,6 +100,7 @@ def main() -> int:
         fusion_result = fusion.update(result["points_xyz"])
         live_manager.publish_map_update(
             fusion.points_xyz,
+            colors_rgb=result.get("colors_rgb"),
             frame_count=int(result["end_sequence"]) + 1,
             keyframe_count=args.window_size,
             tracked_ratio=1.0,
@@ -112,6 +115,8 @@ def main() -> int:
             mapping_map_version=fusion_result.map_version,
             mapping_input_points=fusion_result.input_points,
             mapping_fused_points=fusion_result.fused_points,
+            rgb_available=bool(result.get("rgb_available", False)),
+            rgb_source=result.get("rgb_source"),
             mapping_timings_ms=result.get("timings_ms", {}),
             worker_error=None,
         )
