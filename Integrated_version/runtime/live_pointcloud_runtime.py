@@ -14,6 +14,7 @@ from experiments.orb_keyframe_localizer import OrbRelocalizer
 from runtime.incremental_map_fusion import IncrementalVoxelMap
 from runtime.lingbot_map_session import LingBotMapSession, LingBotMapSessionConfig
 from runtime.live_orb_worker import LatestFrameOrbWorker
+from runtime.exploration_recorder import ExplorationFrameRecorder
 from runtime.live_map_manager import LiveMapManager
 from runtime.streaming_mapping_worker import (
     StreamingMappingWorker,
@@ -42,6 +43,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--localization-min-confidence", type=float, default=0.5)
     parser.add_argument("--localization-frame-stride", type=int, default=1)
     parser.add_argument("--localization-max-features", type=int, default=2000)
+    parser.add_argument("--exploration-dir", type=Path, help="Optional directory for unknown-scene keyframes")
+    parser.add_argument("--exploration-frame-every", type=int, default=10)
     return parser.parse_args()
 
 
@@ -87,8 +90,17 @@ def main() -> int:
         raise SystemExit("read-timeout-ms must be positive and reconnect-delay-s cannot be negative")
     if not 0.0 <= args.localization_min_confidence <= 1.0 or args.localization_frame_stride <= 0 or args.localization_max_features <= 0:
         raise SystemExit("localization confidence must be in [0, 1]; stride and max-features must be positive")
+    if args.exploration_frame_every <= 0:
+        raise SystemExit("exploration-frame-every must be positive")
 
     live_manager = LiveMapManager(args.live_map_dir, max_points=args.max_points)
+    exploration_recorder = (
+        ExplorationFrameRecorder(
+            args.exploration_dir.resolve(),
+            frame_every=args.exploration_frame_every,
+        )
+        if args.exploration_dir is not None else None
+    )
     fusion = IncrementalVoxelMap(
         voxel_size_m=args.voxel_size_m,
         max_points=args.max_points,
@@ -201,6 +213,8 @@ def main() -> int:
         "mode": "MAPPING_WITH_OPTIONAL_LOCALIZATION" if localizer is not None else "MAPPING_ONLY",
         "fps": args.fps,
         "localization_enabled": localizer is not None,
+        "exploration_enabled": exploration_recorder is not None,
+        "exploration_dir": None if exploration_recorder is None else str(exploration_recorder.output_dir),
     }), flush=True)
 
     try:
@@ -255,7 +269,15 @@ def main() -> int:
                 continue
             next_submit = now + 1.0 / args.fps
             write_live_frame(cv2, frame, args.live_map_dir)
-            worker.submit(FramePacket(submitted, frame, time.time()))
+            capture_timestamp = time.time()
+            if exploration_recorder is not None:
+                exploration_recorder.record(
+                    cv2,
+                    frame,
+                    frame_id=submitted,
+                    timestamp_unix=capture_timestamp,
+                )
+            worker.submit(FramePacket(submitted, frame, capture_timestamp))
             submitted += 1
             if orb_worker is not None:
                 orb_worker.submit(
@@ -271,6 +293,7 @@ def main() -> int:
                 processed_windows=worker.processed_windows,
                 localization_processed_frames=orb_worker.processed_frames if orb_worker is not None else 0,
                 localization_dropped_frames=orb_worker.dropped_frames if orb_worker is not None else 0,
+                exploration_saved_frames=exploration_recorder.saved_frames if exploration_recorder is not None else 0,
                 reconnect_count=reconnects,
             )
     except KeyboardInterrupt:
@@ -289,6 +312,7 @@ def main() -> int:
             submitted_frames=submitted,
             processed_windows=worker.processed_windows,
             reconnect_count=reconnects,
+            exploration_saved_frames=exploration_recorder.saved_frames if exploration_recorder is not None else 0,
             reader_error=reader_error[0] if reader_error else None,
             worker_error=str(worker.error) if worker.error else None,
         )
