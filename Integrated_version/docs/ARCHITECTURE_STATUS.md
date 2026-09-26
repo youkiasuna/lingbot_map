@@ -118,3 +118,21 @@ Before removing or moving any file:
 
 This policy is intentionally conservative so research results remain
 reproducible.
+
+## Read-only Level 2 output validation
+
+After a bounded RTSP run, validate an output directory without rerunning
+inference or modifying any files:
+
+```bash
+PYTHONPATH=Integrated_version \
+python Integrated_version/experiments/validate_level2_outputs.py \
+  --live-dir outputs/runtime/level2_test \
+  --require-rgb
+```
+
+The validator checks required JSON/NPZ files, map-version consistency,
+point/color alignment, finite coordinates, and whether the pose is a valid
+accepted pose. A rejected pose is reported as invalid for display but is not
+treated as a fabricated coordinate.
+
