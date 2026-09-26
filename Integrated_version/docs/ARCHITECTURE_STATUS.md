@@ -136,3 +136,18 @@ point/color alignment, finite coordinates, and whether the pose is a valid
 accepted pose. A rejected pose is reported as invalid for display but is not
 treated as a fabricated coordinate.
 
+
+## Unknown-scene exploration capture
+
+The live runtime can optionally retain selected exploration keyframes:
+
+```bash
+--exploration-dir outputs/runtime/exploration_scene_01 \
+--exploration-frame-every 10
+```
+
+This writes JPEG keyframes, `frames.jsonl`, and `session.json`. The option
+is disabled by default. The recorder writes to disk immediately and does not
+retain the camera stream in memory. The saved keyframes can later be passed to
+the mapping workflow to create a scene-specific ORB reference package.
+
