@@ -269,6 +269,8 @@ def main() -> int:
                 last_frame_unix=time.time(),
                 submitted_frames=submitted,
                 processed_windows=worker.processed_windows,
+                localization_processed_frames=orb_worker.processed_frames if orb_worker is not None else 0,
+                localization_dropped_frames=orb_worker.dropped_frames if orb_worker is not None else 0,
                 reconnect_count=reconnects,
             )
     except KeyboardInterrupt:
