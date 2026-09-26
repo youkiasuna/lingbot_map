@@ -10,6 +10,7 @@ import threading
 import time
 
 from runtime.frame_queue import FramePacket
+from experiments.orb_keyframe_localizer import OrbRelocalizer
 from runtime.incremental_map_fusion import IncrementalVoxelMap
 from runtime.lingbot_map_session import LingBotMapSession, LingBotMapSessionConfig
 from runtime.live_map_manager import LiveMapManager
@@ -36,6 +37,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--voxel-size-m", type=float, default=0.03)
     parser.add_argument("--max-points", type=int, default=250000)
     parser.add_argument("--extract-rgb", action="store_true", help="Persist aligned RGB colors in the live point-cloud snapshot")
+    parser.add_argument("--localization-mapping-dir", type=Path, help="Optional ORB mapping package for same-frame relocalization")
+    parser.add_argument("--localization-min-confidence", type=float, default=0.5)
+    parser.add_argument("--localization-frame-stride", type=int, default=1)
+    parser.add_argument("--localization-max-features", type=int, default=2000)
     return parser.parse_args()
 
 
@@ -79,6 +84,8 @@ def main() -> int:
         raise SystemExit("window-size, process-every, and fps must be positive")
     if args.read_timeout_ms <= 0 or args.reconnect_delay_s < 0:
         raise SystemExit("read-timeout-ms must be positive and reconnect-delay-s cannot be negative")
+    if not 0.0 <= args.localization_min_confidence <= 1.0 or args.localization_frame_stride <= 0 or args.localization_max_features <= 0:
+        raise SystemExit("localization confidence must be in [0, 1]; stride and max-features must be positive")
 
     live_manager = LiveMapManager(args.live_map_dir, max_points=args.max_points)
     fusion = IncrementalVoxelMap(
@@ -91,6 +98,13 @@ def main() -> int:
         write_archive=False,
         extract_rgb=args.extract_rgb,
     ))
+    localizer = None
+    if args.localization_mapping_dir is not None:
+        localizer = OrbRelocalizer(
+            args.localization_mapping_dir.resolve(),
+            max_features=args.localization_max_features,
+            frame_stride=args.localization_frame_stride,
+        )
     stop_event = threading.Event()
     reader_error: list[str] = []
     submitted = 0
@@ -151,8 +165,9 @@ def main() -> int:
         "url": args.url,
         "live_map_dir": str(args.live_map_dir),
         "model_load_ms": session.model_load_ms,
-        "mode": "MAPPING_ONLY",
+        "mode": "MAPPING_WITH_OPTIONAL_LOCALIZATION" if localizer is not None else "MAPPING_ONLY",
         "fps": args.fps,
+        "localization_enabled": localizer is not None,
     }), flush=True)
 
     try:
@@ -209,6 +224,35 @@ def main() -> int:
             write_live_frame(cv2, frame, args.live_map_dir)
             worker.submit(FramePacket(submitted, frame, time.time()))
             submitted += 1
+            if localizer is not None:
+                localization = localizer.localize_frame(
+                    frame,
+                    query_id=f"camera_{submitted - 1:06d}",
+                    resize_mode="cover_crop",
+                )
+                best = localization.get("best")
+                accepted = (
+                    localization.get("status") == "localized"
+                    and isinstance(best, dict)
+                    and isinstance(best.get("position_xyz"), list)
+                    and len(best["position_xyz"]) >= 3
+                    and best.get("yaw_deg") is not None
+                    and float(best.get("confidence", 0.0)) >= args.localization_min_confidence
+                )
+                confidence = float(best.get("confidence", 0.0)) if isinstance(best, dict) else 0.0
+                live_manager.publish_pose(
+                    best["position_xyz"] if accepted else None,
+                    float(best["yaw_deg"]) if accepted else None,
+                    confidence=confidence,
+                    status="ok" if accepted else str(localization.get("status", "lost")),
+                    timestamp_unix=float(localization.get("timestamp_unix", time.time())),
+                )
+                live_manager.publish_status(
+                    localization_enabled=True,
+                    localization_status="localized" if accepted else str(localization.get("status", "lost")),
+                    localization_confidence=confidence,
+                    localization_latency_ms=float(localization.get("latency_ms", 0.0)),
+                )
             live_manager.publish_status(
                 mode="MAPPING",
                 mapping_only=True,
