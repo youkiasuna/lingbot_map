@@ -89,6 +89,11 @@ sent to the existing ORB relocalizer and only accepted poses are written as
 valid coordinates in `live_pose.json`; rejected results publish no position.
 Without this option, the runtime remains mapping-only.
 
+ORB localization uses a bounded latest-frame worker. If ORB is
+slower than the RTSP input, stale pending frames are dropped and the queue
+does not grow without limit. Runtime status records
+`localization_processed_frames` and `localization_dropped_frames`.
+
 Localization and navigation are downstream consumers:
 
 ```text
