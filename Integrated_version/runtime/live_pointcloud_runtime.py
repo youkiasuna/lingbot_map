@@ -13,6 +13,7 @@ from runtime.frame_queue import FramePacket
 from experiments.orb_keyframe_localizer import OrbRelocalizer
 from runtime.incremental_map_fusion import IncrementalVoxelMap
 from runtime.lingbot_map_session import LingBotMapSession, LingBotMapSessionConfig
+from runtime.live_orb_worker import LatestFrameOrbWorker
 from runtime.live_map_manager import LiveMapManager
 from runtime.streaming_mapping_worker import (
     StreamingMappingWorker,
@@ -105,6 +106,38 @@ def main() -> int:
             max_features=args.localization_max_features,
             frame_stride=args.localization_frame_stride,
         )
+    def on_localization(result: dict) -> None:
+        best = result.get("best")
+        accepted = (
+            result.get("status") == "localized"
+            and isinstance(best, dict)
+            and isinstance(best.get("position_xyz"), list)
+            and len(best["position_xyz"]) >= 3
+            and best.get("yaw_deg") is not None
+            and float(best.get("confidence", 0.0)) >= args.localization_min_confidence
+        )
+        confidence = float(best.get("confidence", 0.0)) if isinstance(best, dict) else 0.0
+        live_manager.publish_pose(
+            best["position_xyz"] if accepted else None,
+            float(best["yaw_deg"]) if accepted else None,
+            confidence=confidence,
+            status="ok" if accepted else str(result.get("status", "lost")),
+            timestamp_unix=float(result.get("timestamp_unix", time.time())),
+        )
+        live_manager.publish_status(
+            localization_enabled=True,
+            localization_status="localized" if accepted else str(result.get("status", "lost")),
+            localization_confidence=confidence,
+            localization_latency_ms=float(result.get("latency_ms", 0.0)),
+        )
+
+    orb_worker = (
+        LatestFrameOrbWorker(localizer, on_localization)
+        if localizer is not None else None
+    )
+    if orb_worker is not None:
+        orb_worker.start()
+
     stop_event = threading.Event()
     reader_error: list[str] = []
     submitted = 0
@@ -224,34 +257,10 @@ def main() -> int:
             write_live_frame(cv2, frame, args.live_map_dir)
             worker.submit(FramePacket(submitted, frame, time.time()))
             submitted += 1
-            if localizer is not None:
-                localization = localizer.localize_frame(
+            if orb_worker is not None:
+                orb_worker.submit(
                     frame,
                     query_id=f"camera_{submitted - 1:06d}",
-                    resize_mode="cover_crop",
-                )
-                best = localization.get("best")
-                accepted = (
-                    localization.get("status") == "localized"
-                    and isinstance(best, dict)
-                    and isinstance(best.get("position_xyz"), list)
-                    and len(best["position_xyz"]) >= 3
-                    and best.get("yaw_deg") is not None
-                    and float(best.get("confidence", 0.0)) >= args.localization_min_confidence
-                )
-                confidence = float(best.get("confidence", 0.0)) if isinstance(best, dict) else 0.0
-                live_manager.publish_pose(
-                    best["position_xyz"] if accepted else None,
-                    float(best["yaw_deg"]) if accepted else None,
-                    confidence=confidence,
-                    status="ok" if accepted else str(localization.get("status", "lost")),
-                    timestamp_unix=float(localization.get("timestamp_unix", time.time())),
-                )
-                live_manager.publish_status(
-                    localization_enabled=True,
-                    localization_status="localized" if accepted else str(localization.get("status", "lost")),
-                    localization_confidence=confidence,
-                    localization_latency_ms=float(localization.get("latency_ms", 0.0)),
                 )
             live_manager.publish_status(
                 mode="MAPPING",
@@ -268,6 +277,8 @@ def main() -> int:
         stop_event.set()
         if capture is not None:
             capture.release()
+        if orb_worker is not None:
+            orb_worker.stop(timeout_s=10.0)
         worker.stop(timeout_s=30.0)
         live_manager.publish_status(
             mode="STOPPED",
@@ -280,6 +291,8 @@ def main() -> int:
             worker_error=str(worker.error) if worker.error else None,
         )
 
+    if orb_worker is not None and orb_worker.error:
+        raise orb_worker.error
     if worker.error:
         raise worker.error
     return 0
