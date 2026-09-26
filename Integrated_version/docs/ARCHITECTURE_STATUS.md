@@ -83,6 +83,12 @@ The web viewer also polls `/api/live/pose`. A red pose marker is shown
 only when `live_pose.json.position_xyz` contains three finite coordinates. A
 missing, rejected, or stale pose does not create a marker.
 
+The RTSP live mapping runtime now accepts an optional
+`--localization-mapping-dir`. When supplied, the same captured frames are
+sent to the existing ORB relocalizer and only accepted poses are written as
+valid coordinates in `live_pose.json`; rejected results publish no position.
+Without this option, the runtime remains mapping-only.
+
 Localization and navigation are downstream consumers:
 
 ```text
