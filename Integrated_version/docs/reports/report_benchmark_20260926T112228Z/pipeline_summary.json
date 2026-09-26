@@ -10,7 +10,9 @@
     "peak_gpu_memory_mb": "NOT VERIFIED",
     "final_voxel_count": "NOT VERIFIED",
     "final_output_bytes": "NOT VERIFIED",
-    "status": "NOT SUPPORTED BY CURRENT CLI"
+    "status": "NOT SUPPORTED BY CURRENT CLI",
+    "latency_field": "N/A",
+    "notes": "Current CLI exposes NPZ snapshot output only."
   },
   {
     "pipeline": "prediction_npz",
@@ -20,10 +22,12 @@
     "p50_latency_ms": 366.035,
     "p95_latency_ms": 381.951,
     "peak_rss_mb": 829.16,
-    "peak_gpu_memory_mb": null,
+    "peak_gpu_memory_mb": "NOT SAMPLED",
     "final_voxel_count": 33947,
     "final_output_bytes": 374344,
-    "status": "OK"
+    "status": "OK",
+    "latency_field": "latency_ms from replay_summary records",
+    "notes": "Prediction replay uses existing world_points; not online RGB depth inference."
   },
   {
     "pipeline": "prediction_long300",
@@ -36,32 +40,38 @@
     "peak_gpu_memory_mb": 631.0,
     "final_voxel_count": 33947,
     "final_output_bytes": 374345,
-    "status": "OK"
+    "status": "OK",
+    "latency_field": "latency_ms from replay_summary records",
+    "notes": "Prediction replay uses existing world_points; not online RGB depth inference."
   },
   {
     "pipeline": "lingbot_persistent_archive",
     "backend": "lingbot",
     "updates": 2,
-    "mean_latency_ms": 336.12,
-    "p50_latency_ms": 336.12,
-    "p95_latency_ms": 333.1,
+    "mean_latency_ms": 4017.81,
+    "p50_latency_ms": 4017.81,
+    "p95_latency_ms": 4936.321,
     "peak_rss_mb": 5305.5,
     "peak_gpu_memory_mb": 9810.0,
     "final_voxel_count": 8957,
     "final_output_bytes": 101177,
-    "status": "OK"
+    "status": "OK; P95 uses nearest-rank over only 2 windows, report with caution",
+    "latency_field": "backend_timings_ms.backend_total",
+    "notes": "model_load_ms is session-level only and excluded from per-window backend_total."
   },
   {
     "pipeline": "lingbot_persistent_fast",
     "backend": "lingbot",
     "updates": 2,
-    "mean_latency_ms": 327.255,
-    "p50_latency_ms": 327.255,
-    "p95_latency_ms": 323.763,
+    "mean_latency_ms": 2027.343,
+    "p50_latency_ms": 2027.343,
+    "p95_latency_ms": 2955.299,
     "peak_rss_mb": 5291.211,
     "peak_gpu_memory_mb": 9808.0,
     "final_voxel_count": 8957,
     "final_output_bytes": 101178,
-    "status": "OK"
+    "status": "OK; P95 uses nearest-rank over only 2 windows, report with caution",
+    "latency_field": "backend_timings_ms.backend_total",
+    "notes": "model_load_ms is session-level only and excluded from per-window backend_total."
   }
 ]
