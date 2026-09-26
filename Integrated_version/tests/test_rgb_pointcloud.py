@@ -3,8 +3,10 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import torch
 
 from runtime.rgb_pointcloud import flatten_colored_world_points
+from runtime.lingbot_map_session import images_tensor_to_rgb_uint8
 
 
 class RGBPointCloudTests(unittest.TestCase):
@@ -36,6 +38,16 @@ class RGBPointCloudTests(unittest.TestCase):
 
         self.assertEqual(len(output_points), len(output_colors))
         self.assertLessEqual(len(output_points), 5)
+
+    def test_session_rgb_extraction_accepts_batched_5d_tensor(self) -> None:
+        images = torch.zeros((1, 2, 3, 1, 2), dtype=torch.float32)
+        images[0, 0, :, 0, 0] = torch.tensor([1.0, 0.5, 0.25])
+
+        rgb = images_tensor_to_rgb_uint8(images)
+
+        self.assertEqual(rgb.shape, (2, 1, 2, 3))
+        self.assertEqual(rgb.dtype, np.uint8)
+        self.assertEqual(rgb[0, 0, 0].tolist(), [255, 127, 63])
 
 
 if __name__ == "__main__":

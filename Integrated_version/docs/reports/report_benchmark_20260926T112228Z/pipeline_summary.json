@@ -1,0 +1,67 @@
+[
+  {
+    "pipeline": "prediction_json",
+    "backend": "prediction",
+    "updates": 0,
+    "mean_latency_ms": "NOT VERIFIED",
+    "p50_latency_ms": "NOT VERIFIED",
+    "p95_latency_ms": "NOT VERIFIED",
+    "peak_rss_mb": "NOT VERIFIED",
+    "peak_gpu_memory_mb": "NOT VERIFIED",
+    "final_voxel_count": "NOT VERIFIED",
+    "final_output_bytes": "NOT VERIFIED",
+    "status": "NOT SUPPORTED BY CURRENT CLI"
+  },
+  {
+    "pipeline": "prediction_npz",
+    "backend": "prediction",
+    "updates": 34,
+    "mean_latency_ms": 361.842,
+    "p50_latency_ms": 366.035,
+    "p95_latency_ms": 381.951,
+    "peak_rss_mb": 829.16,
+    "peak_gpu_memory_mb": null,
+    "final_voxel_count": 33947,
+    "final_output_bytes": 374344,
+    "status": "OK"
+  },
+  {
+    "pipeline": "prediction_long300",
+    "backend": "prediction",
+    "updates": 34,
+    "mean_latency_ms": 354.894,
+    "p50_latency_ms": 356.565,
+    "p95_latency_ms": 379.322,
+    "peak_rss_mb": 828.828,
+    "peak_gpu_memory_mb": 631.0,
+    "final_voxel_count": 33947,
+    "final_output_bytes": 374345,
+    "status": "OK"
+  },
+  {
+    "pipeline": "lingbot_persistent_archive",
+    "backend": "lingbot",
+    "updates": 2,
+    "mean_latency_ms": 336.12,
+    "p50_latency_ms": 336.12,
+    "p95_latency_ms": 333.1,
+    "peak_rss_mb": 5305.5,
+    "peak_gpu_memory_mb": 9810.0,
+    "final_voxel_count": 8957,
+    "final_output_bytes": 101177,
+    "status": "OK"
+  },
+  {
+    "pipeline": "lingbot_persistent_fast",
+    "backend": "lingbot",
+    "updates": 2,
+    "mean_latency_ms": 327.255,
+    "p50_latency_ms": 327.255,
+    "p95_latency_ms": 323.763,
+    "peak_rss_mb": 5291.211,
+    "peak_gpu_memory_mb": 9808.0,
+    "final_voxel_count": 8957,
+    "final_output_bytes": 101178,
+    "status": "OK"
+  }
+]

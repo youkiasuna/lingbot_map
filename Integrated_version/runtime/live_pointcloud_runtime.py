@@ -54,7 +54,7 @@ def camera_source(value: str) -> int | str:
 
 def write_live_frame(cv2, frame, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    temporary = output_dir / ".live_frame.jpg.tmp"
+    temporary = output_dir / ".live_frame.tmp.jpg"
     destination = output_dir / "live_frame.jpg"
     if not cv2.imwrite(str(temporary), frame):
         raise OSError(f"failed to write {temporary}")

@@ -1,0 +1,12 @@
+{
+  "rtsp_url": "rtsp://10.147.19.59:8554/live",
+  "camera_connection": false,
+  "frame_read": false,
+  "frame_shape": null,
+  "mapping": "NOT VERIFIED: RTSP smoke test failed in this report run",
+  "rgb_point_cloud": "NOT VERIFIED",
+  "localization": "NOT VERIFIED",
+  "frontend_api": "NOT VERIFIED for this report run",
+  "esp32": "NOT ENABLED",
+  "reader_error": "connection refused during report run"
+}

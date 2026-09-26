@@ -1,0 +1,5 @@
+pipeline,window,image_prepare,model_load,inference,archive_write,point_extract,fusion,output_write,total,session_total
+lingbot_persistent_archive,0-9,190.166,11776.987,2559.392,2010.634,166.854,333.1,included_in_fusion_latency,4991.309,4935.358
+lingbot_persistent_archive,10-19,194.075,11776.987,743.529,2005.123,149.222,339.141,included_in_fusion_latency,3154.743,3098.371
+lingbot_persistent_fast,0-9,193.827,11820.182,2585.276,0.0,166.7,323.763,included_in_fusion_latency,3009.181,2954.67
+lingbot_persistent_fast,10-19,192.508,11820.182,750.643,0.0,149.744,330.747,included_in_fusion_latency,1152.256,1098.61

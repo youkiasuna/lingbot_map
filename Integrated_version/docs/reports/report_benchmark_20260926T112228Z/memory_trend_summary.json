@@ -1,0 +1,14 @@
+{
+  "rss_memory_trend": "slightly_increasing",
+  "rss_start_mb": 808.203,
+  "rss_end_mb": 828.828,
+  "gpu_memory_trend": "NOT VERIFIED as update-aligned series; sampled separately in prediction_long300_gpu.csv",
+  "voxel_trend": "increasing",
+  "latency_trend": "not_monotonic_or_short_series",
+  "latency_start_ms": 329.489,
+  "latency_end_ms": 382.735,
+  "output_size_trend": "increasing",
+  "queue_accumulation": "NOT VERIFIED: prediction replay has no RTSP queue",
+  "obvious_memory_leak": "NOT VERIFIED: only 34 updates available from 43-frame package",
+  "source_data_limit": "predictions.npz has 43 frames; max_frames=300 produced 34 windows only; max_frames=600 not run"
+}

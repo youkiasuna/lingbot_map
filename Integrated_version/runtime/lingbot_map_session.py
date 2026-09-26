@@ -40,6 +40,25 @@ class LingBotMapSessionConfig:
     extract_rgb: bool = False
 
 
+def images_tensor_to_rgb_uint8(images: torch.Tensor) -> np.ndarray:
+    """Convert model/preprocessed image tensors to frame-aligned RGB uint8."""
+    tensor = images.detach().cpu()
+    if tensor.ndim == 5 and tensor.shape[0] == 1:
+        tensor = tensor.squeeze(0)
+    elif tensor.ndim == 5:
+        leading = int(np.prod(tensor.shape[:-3]))
+        tensor = tensor.reshape(leading, *tensor.shape[-3:])
+
+    if tensor.ndim != 4:
+        raise ValueError(f"images tensor must be 4D after normalization, got {tuple(tensor.shape)}")
+    if tensor.shape[1] == 3:
+        tensor = tensor.permute(0, 2, 3, 1)
+    elif tensor.shape[-1] != 3:
+        raise ValueError(f"images tensor must have an RGB channel dimension, got {tuple(tensor.shape)}")
+
+    return (tensor.numpy() * 255.0).clip(0, 255).astype(np.uint8)
+
+
 class LingBotMapSession:
     """Load LingBot-MAP once and reuse it for multiple inference windows."""
 
@@ -131,13 +150,7 @@ class LingBotMapSession:
         points = np.asarray(points_value)
         colors_rgb = None
         if self.config.extract_rgb:
-            images_rgb = (
-                images_cpu.detach()
-                .cpu()
-                .permute(0, 2, 3, 1)
-                .numpy()
-                * 255.0
-            ).clip(0, 255).astype(np.uint8)
+            images_rgb = images_tensor_to_rgb_uint8(images_cpu)
             points, colors_rgb = flatten_colored_world_points(points, images_rgb)
         else:
             points = points.reshape(-1, 3)

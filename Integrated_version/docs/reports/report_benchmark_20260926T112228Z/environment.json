@@ -1,0 +1,23 @@
+{
+  "hostname": "ee303-3090",
+  "pwd": "/media/ee303/1tb/lingbot_map",
+  "python": "3.10.20",
+  "python_executable": "/home/ee303/miniconda3/envs/lingbot-map/bin/python",
+  "torch": "2.8.0+cu128",
+  "cuda": true,
+  "gpu": "NVIDIA GeForce RTX 3090",
+  "opencv": "5.0.0",
+  "numpy": "2.2.6",
+  "git_status_short": "M Integrated_version/runtime/lingbot_map_session.py\n M Integrated_version/runtime/live_pointcloud_runtime.py\n M Integrated_version/tests/test_rgb_pointcloud.py",
+  "git_branch": "codex/schema-consolidation-latest",
+  "git_commit": "ba8ed03adcfe9cfe68401a0d48320f05ce7e9fae",
+  "git_log_oneline_5": [
+    "ba8ed03 docs: describe unknown-scene exploration capture",
+    "6419bb3 test: cover exploration keyframe recorder",
+    "364f341 feat: record optional unknown-scene keyframes",
+    "268e56d feat: add optional exploration keyframe recorder",
+    "278fe26 test: cover Level 2 output validation"
+  ],
+  "nvidia_smi_query": "631, 24576, 0, NVIDIA GeForce RTX 3090",
+  "nvidia_smi_full": "Sat Sep 26 19:22:44 2026       \n+-----------------------------------------------------------------------------------------+\n| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |\n+-----------------------------------------+------------------------+----------------------+\n| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |\n| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |\n|                                         |                        |               MIG M. |\n|=========================================+========================+======================|\n|   0  NVIDIA GeForce RTX 3090        Off |   00000000:08:00.0  On |                  N/A |\n|  0%   50C    P8             43W /  370W |     631MiB /  24576MiB |      0%      Default |\n|                                         |                        |                  N/A |\n+-----------------------------------------+------------------------+----------------------+\n\n+-----------------------------------------------------------------------------------------+\n| Processes:                                                                              |\n|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |\n|        ID   ID                                                               Usage      |\n|=========================================================================================|\n|    0   N/A  N/A            2093      G   /usr/lib/xorg/Xorg                      158MiB |\n|    0   N/A  N/A            2389    C+G   ...c/gnome-remote-desktop-daemon        260MiB |\n|    0   N/A  N/A            2486      G   /usr/bin/gnome-shell                     25MiB |\n|    0   N/A  N/A            3253      G   ...bin/snapd-desktop-integration         10MiB |\n|    0   N/A  N/A           90513      G   ...rack-uuid=3190708988185955192         52MiB |\n|    0   N/A  N/A           94162      G   .../8929/usr/lib/firefox/firefox         24MiB |\n+-----------------------------------------------------------------------------------------+"
+}

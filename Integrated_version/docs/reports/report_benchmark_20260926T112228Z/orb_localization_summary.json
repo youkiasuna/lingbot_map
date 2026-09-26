@@ -1,0 +1,454 @@
+{
+  "reference_image": {
+    "input": "outputs/scenes/scene_20260818/mapping/preprocessed/000000.png",
+    "status": "localized",
+    "query_keypoint_count": 2094,
+    "match_count": 2094,
+    "inlier_count": 300,
+    "inlier_ratio": 0.1433,
+    "reprojection_error_px": 0.0,
+    "confidence": 1.0,
+    "position_xyz": [
+      0.00126,
+      -0.00141,
+      0.00204
+    ],
+    "yaw_deg": 0.0,
+    "latency_ms": 350.509
+  },
+  "video_replay": {
+    "input": "data/videos/20260818.mp4",
+    "processed_frames": 30,
+    "localized_frames": 30,
+    "lost_frames": 0,
+    "low_confidence_frames": 0,
+    "accepted_localization_ratio": 1.0,
+    "mean_confidence": 0.9864,
+    "mean_latency_ms": 336.666,
+    "p50_latency_ms": 334.434,
+    "p95_latency_ms": 351.176,
+    "records": [
+      {
+        "frame_id": 0,
+        "status": "localized",
+        "confidence": 0.9886,
+        "latency_ms": 334.951,
+        "match_count": 1713,
+        "inlier_count": 286,
+        "position_xyz": [
+          0.00172,
+          -0.00058,
+          0.00666
+        ],
+        "yaw_deg": 359.87
+      },
+      {
+        "frame_id": 1,
+        "status": "localized",
+        "confidence": 0.987,
+        "latency_ms": 333.0,
+        "match_count": 1674,
+        "inlier_count": 285,
+        "position_xyz": [
+          0.0016,
+          -0.00071,
+          0.00561
+        ],
+        "yaw_deg": 359.87
+      },
+      {
+        "frame_id": 2,
+        "status": "localized",
+        "confidence": 0.9864,
+        "latency_ms": 328.218,
+        "match_count": 1588,
+        "inlier_count": 274,
+        "position_xyz": [
+          0.00197,
+          -0.00055,
+          0.00672
+        ],
+        "yaw_deg": 359.86
+      },
+      {
+        "frame_id": 3,
+        "status": "localized",
+        "confidence": 0.9835,
+        "latency_ms": 333.061,
+        "match_count": 1485,
+        "inlier_count": 297,
+        "position_xyz": [
+          0.00157,
+          -0.00089,
+          0.00567
+        ],
+        "yaw_deg": 359.88
+      },
+      {
+        "frame_id": 4,
+        "status": "localized",
+        "confidence": 0.9831,
+        "latency_ms": 331.862,
+        "match_count": 1437,
+        "inlier_count": 275,
+        "position_xyz": [
+          0.00054,
+          0.00036,
+          0.00678
+        ],
+        "yaw_deg": 359.96
+      },
+      {
+        "frame_id": 5,
+        "status": "localized",
+        "confidence": 0.9851,
+        "latency_ms": 346.983,
+        "match_count": 1465,
+        "inlier_count": 285,
+        "position_xyz": [
+          0.00015,
+          0.00052,
+          0.00727
+        ],
+        "yaw_deg": 359.97
+      },
+      {
+        "frame_id": 6,
+        "status": "localized",
+        "confidence": 0.9848,
+        "latency_ms": 333.366,
+        "match_count": 1493,
+        "inlier_count": 290,
+        "position_xyz": [
+          0.0006,
+          0.00036,
+          0.00621
+        ],
+        "yaw_deg": 359.95
+      },
+      {
+        "frame_id": 7,
+        "status": "localized",
+        "confidence": 0.9861,
+        "latency_ms": 332.962,
+        "match_count": 1502,
+        "inlier_count": 273,
+        "position_xyz": [
+          0.00151,
+          0.00049,
+          0.00694
+        ],
+        "yaw_deg": 359.92
+      },
+      {
+        "frame_id": 8,
+        "status": "localized",
+        "confidence": 0.9877,
+        "latency_ms": 338.33,
+        "match_count": 1503,
+        "inlier_count": 281,
+        "position_xyz": [
+          0.00198,
+          -0.00059,
+          0.0063
+        ],
+        "yaw_deg": 359.85
+      },
+      {
+        "frame_id": 9,
+        "status": "localized",
+        "confidence": 0.9889,
+        "latency_ms": 339.21,
+        "match_count": 1533,
+        "inlier_count": 295,
+        "position_xyz": [
+          0.00166,
+          -0.00079,
+          0.00517
+        ],
+        "yaw_deg": 359.86
+      },
+      {
+        "frame_id": 10,
+        "status": "localized",
+        "confidence": 0.9884,
+        "latency_ms": 332.569,
+        "match_count": 1541,
+        "inlier_count": 300,
+        "position_xyz": [
+          0.00173,
+          -0.00082,
+          0.00529
+        ],
+        "yaw_deg": 359.85
+      },
+      {
+        "frame_id": 11,
+        "status": "localized",
+        "confidence": 0.9876,
+        "latency_ms": 332.488,
+        "match_count": 1552,
+        "inlier_count": 300,
+        "position_xyz": [
+          0.00163,
+          -0.0008,
+          0.00502
+        ],
+        "yaw_deg": 359.86
+      },
+      {
+        "frame_id": 12,
+        "status": "localized",
+        "confidence": 0.9879,
+        "latency_ms": 336.586,
+        "match_count": 1556,
+        "inlier_count": 280,
+        "position_xyz": [
+          0.00158,
+          -0.00068,
+          0.00657
+        ],
+        "yaw_deg": 359.87
+      },
+      {
+        "frame_id": 13,
+        "status": "localized",
+        "confidence": 0.9874,
+        "latency_ms": 332.579,
+        "match_count": 1532,
+        "inlier_count": 289,
+        "position_xyz": [
+          0.00181,
+          -0.00067,
+          0.00585
+        ],
+        "yaw_deg": 359.86
+      },
+      {
+        "frame_id": 14,
+        "status": "localized",
+        "confidence": 0.9868,
+        "latency_ms": 351.176,
+        "match_count": 1542,
+        "inlier_count": 300,
+        "position_xyz": [
+          0.00162,
+          -0.00073,
+          0.00536
+        ],
+        "yaw_deg": 359.87
+      },
+      {
+        "frame_id": 15,
+        "status": "localized",
+        "confidence": 0.9854,
+        "latency_ms": 336.254,
+        "match_count": 1512,
+        "inlier_count": 295,
+        "position_xyz": [
+          0.00146,
+          -0.00072,
+          0.0059
+        ],
+        "yaw_deg": 359.88
+      },
+      {
+        "frame_id": 16,
+        "status": "localized",
+        "confidence": 0.9846,
+        "latency_ms": 336.543,
+        "match_count": 1490,
+        "inlier_count": 300,
+        "position_xyz": [
+          0.00161,
+          -0.00089,
+          0.00544
+        ],
+        "yaw_deg": 359.88
+      },
+      {
+        "frame_id": 17,
+        "status": "localized",
+        "confidence": 0.986,
+        "latency_ms": 339.386,
+        "match_count": 1425,
+        "inlier_count": 266,
+        "position_xyz": [
+          0.0038,
+          0.00051,
+          0.00931
+        ],
+        "yaw_deg": 359.86
+      },
+      {
+        "frame_id": 18,
+        "status": "localized",
+        "confidence": 0.9849,
+        "latency_ms": 335.86,
+        "match_count": 1422,
+        "inlier_count": 285,
+        "position_xyz": [
+          0.00072,
+          0.00014,
+          0.00605
+        ],
+        "yaw_deg": 359.96
+      },
+      {
+        "frame_id": 19,
+        "status": "localized",
+        "confidence": 0.9846,
+        "latency_ms": 339.484,
+        "match_count": 1448,
+        "inlier_count": 266,
+        "position_xyz": [
+          0.00289,
+          -0.00048,
+          0.00809
+        ],
+        "yaw_deg": 359.86
+      },
+      {
+        "frame_id": 20,
+        "status": "localized",
+        "confidence": 0.9842,
+        "latency_ms": 334.434,
+        "match_count": 1431,
+        "inlier_count": 296,
+        "position_xyz": [
+          0.00079,
+          0.00022,
+          0.00508
+        ],
+        "yaw_deg": 359.94
+      },
+      {
+        "frame_id": 21,
+        "status": "localized",
+        "confidence": 0.9856,
+        "latency_ms": 333.582,
+        "match_count": 1449,
+        "inlier_count": 277,
+        "position_xyz": [
+          0.00191,
+          -0.00033,
+          0.00845
+        ],
+        "yaw_deg": 359.89
+      },
+      {
+        "frame_id": 22,
+        "status": "localized",
+        "confidence": 0.9863,
+        "latency_ms": 349.184,
+        "match_count": 1468,
+        "inlier_count": 284,
+        "position_xyz": [
+          0.00093,
+          -0.0005,
+          0.00779
+        ],
+        "yaw_deg": 359.92
+      },
+      {
+        "frame_id": 23,
+        "status": "localized",
+        "confidence": 0.9865,
+        "latency_ms": 356.648,
+        "match_count": 1468,
+        "inlier_count": 300,
+        "position_xyz": [
+          0.00079,
+          0.00023,
+          0.00514
+        ],
+        "yaw_deg": 359.95
+      },
+      {
+        "frame_id": 24,
+        "status": "localized",
+        "confidence": 0.9866,
+        "latency_ms": 332.34,
+        "match_count": 1478,
+        "inlier_count": 297,
+        "position_xyz": [
+          0.0007,
+          0.00012,
+          0.00494
+        ],
+        "yaw_deg": 359.95
+      },
+      {
+        "frame_id": 25,
+        "status": "localized",
+        "confidence": 0.9883,
+        "latency_ms": 334.607,
+        "match_count": 1473,
+        "inlier_count": 271,
+        "position_xyz": [
+          0.00174,
+          0.00029,
+          0.00784
+        ],
+        "yaw_deg": 359.93
+      },
+      {
+        "frame_id": 26,
+        "status": "localized",
+        "confidence": 0.9867,
+        "latency_ms": 339.097,
+        "match_count": 1464,
+        "inlier_count": 300,
+        "position_xyz": [
+          0.00108,
+          -4e-05,
+          0.00398
+        ],
+        "yaw_deg": 359.93
+      },
+      {
+        "frame_id": 27,
+        "status": "localized",
+        "confidence": 0.9872,
+        "latency_ms": 330.878,
+        "match_count": 1476,
+        "inlier_count": 300,
+        "position_xyz": [
+          0.00098,
+          0.0001,
+          0.00481
+        ],
+        "yaw_deg": 359.93
+      },
+      {
+        "frame_id": 28,
+        "status": "localized",
+        "confidence": 0.9881,
+        "latency_ms": 332.27,
+        "match_count": 1465,
+        "inlier_count": 295,
+        "position_xyz": [
+          0.00159,
+          0.0002,
+          0.00528
+        ],
+        "yaw_deg": 359.91
+      },
+      {
+        "frame_id": 29,
+        "status": "localized",
+        "confidence": 0.9873,
+        "latency_ms": 332.076,
+        "match_count": 1467,
+        "inlier_count": 299,
+        "position_xyz": [
+          0.00118,
+          0.00014,
+          0.00474
+        ],
+        "yaw_deg": 359.92
+      }
+    ]
+  },
+  "physical_positioning_accuracy": "NOT AVAILABLE: no external ground truth"
+}

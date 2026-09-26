@@ -1,0 +1,43 @@
+test_coordinate_and_timestamp_constants_are_explicit (test_core_schemas.CoreSchemaTests) ... ok
+test_defaults_are_safe_for_live_pipeline (test_core_schemas.CoreSchemaTests) ... ok
+test_live_map_manager_keeps_legacy_fields_and_adds_records (test_core_schemas.CoreSchemaTests) ... ok
+test_live_status_keeps_legacy_fields_and_adds_record (test_core_schemas.CoreSchemaTests) ... ok
+test_localization_record_contains_quality_metrics (test_core_schemas.CoreSchemaTests) ... ok
+test_mapping_window_record_contains_nested_metadata (test_core_schemas.CoreSchemaTests) ... ok
+test_navigation_command_adapts_existing_twist_shape (test_core_schemas.CoreSchemaTests) ... ok
+test_records_are_json_compatible (test_core_schemas.CoreSchemaTests) ... ok
+test_rgb_metadata_must_be_consistent (test_core_schemas.CoreSchemaTests) ... ok
+test_records_selected_frames_without_overwriting (test_exploration_recorder.ExplorationRecorderTests) ... ok
+test_line_of_sight_rejects_a_diagonal_corner_cut (test_grid_navigation.GridNavigationTest) ... ok
+test_risk_aware_simplification_keeps_the_safe_detour (test_grid_navigation.GridNavigationTest) ... ok
+test_world_to_pixel_does_not_truncate_outside_coordinates_into_map (test_grid_navigation.GridNavigationTest) ... ok
+test_replay_windows_are_bounded (test_incremental_mapping.IncrementalMappingTests) ... ok
+test_voxel_fusion_increments_version_and_merges_duplicates (test_incremental_mapping.IncrementalMappingTests) ... ok
+test_voxel_fusion_keeps_rgb_aligned (test_incremental_mapping.IncrementalMappingTests) ... ok
+test_geometry_only_output_remains_supported (test_level2_output_validator.Level2OutputValidatorTests) ... ok
+test_valid_rgb_output (test_level2_output_validator.Level2OutputValidatorTests) ... ok
+test_invalid_update_keeps_previous_map (test_live_mapping_architecture.LiveMappingArchitectureTests) ... ok
+test_map_update_is_versioned_and_limited (test_live_mapping_architecture.LiveMappingArchitectureTests) ... ok
+test_navigation_requires_ready_map (test_live_mapping_architecture.LiveMappingArchitectureTests) ... ok
+test_rgb_snapshot_keeps_point_color_alignment (test_live_mapping_architecture.LiveMappingArchitectureTests) ... ok
+test_worker_drops_stale_frames_and_stops (test_live_orb_worker.LatestFrameOrbWorkerTests) ... ok
+test_prediction_backend_returns_standard_result (test_local_pointcloud_backend.LocalPointCloudBackendTests) ... ok
+test_invalid_queue_size_is_rejected (test_online_mapping_navigation.LatestFrameQueueTests) ... ok
+test_packet_converts_to_shared_frame_record (test_online_mapping_navigation.LatestFrameQueueTests) ... ok
+test_queue_keeps_latest_and_counts_drops (test_online_mapping_navigation.LatestFrameQueueTests) ... ok
+test_esp32_adapter_rejects_hardware_mode (test_realtime_navigation_core.RealtimeNavigationCoreTests) ... ok
+test_esp32_adapter_writes_dry_run_log (test_realtime_navigation_core.RealtimeNavigationCoreTests) ... [DRY-RUN] ESP32 {"event": "velocity_command", "linear_mps": 0.1, "angular_rps": 0.2, "status": "tracking", "dry_run": true, "timestamp_unix": 1790421781.6205044}
+[DRY-RUN] ESP32 {"event": "velocity_command", "linear_mps": 0.0, "angular_rps": 0.0, "status": "safety_stop", "dry_run": true, "timestamp_unix": 1790421781.6206086}
+ok
+test_low_confidence_causes_stop (test_realtime_navigation_core.RealtimeNavigationCoreTests) ... ok
+test_stale_pose_causes_stop (test_realtime_navigation_core.RealtimeNavigationCoreTests) ... ok
+test_valid_pose_produces_tracking_command (test_realtime_navigation_core.RealtimeNavigationCoreTests) ... ok
+test_max_points_keeps_matching_colors (test_rgb_pointcloud.RGBPointCloudTests) ... ok
+test_points_and_colors_remain_aligned (test_rgb_pointcloud.RGBPointCloudTests) ... ok
+test_session_rgb_extraction_accepts_batched_5d_tensor (test_rgb_pointcloud.RGBPointCloudTests) ... ok
+test_shape_mismatch_is_rejected (test_rgb_pointcloud.RGBPointCloudTests) ... ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 0.070s
+
+OK

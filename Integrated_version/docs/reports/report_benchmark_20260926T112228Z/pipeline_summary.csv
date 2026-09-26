@@ -1,0 +1,6 @@
+pipeline,backend,updates,mean_latency_ms,p50_latency_ms,p95_latency_ms,peak_rss_mb,peak_gpu_memory_mb,final_voxel_count,final_output_bytes,status
+prediction_json,prediction,0,NOT VERIFIED,NOT VERIFIED,NOT VERIFIED,NOT VERIFIED,NOT VERIFIED,NOT VERIFIED,NOT VERIFIED,NOT SUPPORTED BY CURRENT CLI
+prediction_npz,prediction,34,361.842,366.035,381.951,829.16,,33947,374344,OK
+prediction_long300,prediction,34,354.894,356.565,379.322,828.828,631.0,33947,374345,OK
+lingbot_persistent_archive,lingbot,2,336.12,336.12,333.1,5305.5,9810.0,8957,101177,OK
+lingbot_persistent_fast,lingbot,2,327.255,327.255,323.763,5291.211,9808.0,8957,101178,OK

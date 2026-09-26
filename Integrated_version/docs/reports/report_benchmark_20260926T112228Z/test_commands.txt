@@ -1,0 +1,28 @@
+# Environment
+hostname
+pwd
+python --version
+python -c "import torch, cv2, numpy as np; ..."
+git status --short
+git branch --show-current
+git log --oneline -5
+nvidia-smi
+
+# Basic validation
+python -m compileall -q Integrated_version
+PYTHONPATH=Integrated_version python -m unittest discover -s Integrated_version/tests -v
+PYTHONPATH=Integrated_version python Integrated_version/runtime/live_pointcloud_runtime.py --help
+PYTHONPATH=Integrated_version python Integrated_version/experiments/run_live_mapping_replay.py --help
+PYTHONPATH=Integrated_version python Integrated_version/runtime/online_mapping_navigation.py --help
+
+# Prediction replay
+PYTHONPATH=Integrated_version python Integrated_version/experiments/run_live_mapping_replay.py --backend prediction --mapping-package outputs/scenes/scene_20260818/mapping/predictions.npz --output-dir outputs/reports/report_benchmark_20260926T112228Z/prediction_npz --window-size 10 --process-every 1 --max-frames 43 --benchmark-label prediction_npz --resource-sample-every 1
+PYTHONPATH=Integrated_version python Integrated_version/experiments/run_live_mapping_replay.py --backend prediction --mapping-package outputs/scenes/scene_20260818/mapping/predictions.npz --output-dir outputs/reports/report_benchmark_20260926T112228Z/prediction_long300 --window-size 10 --process-every 1 --max-frames 300 --benchmark-label prediction_long300 --resource-sample-every 1
+
+# LingBot persistent
+PYTHONPATH=Integrated_version python Integrated_version/experiments/run_live_mapping_replay.py --backend lingbot --persistent-worker --save-window-archives --source-dir data/frames/20260818_frames --model-path models/lingbot-map.pt --lingbot-root lingbot-map-main --output-dir outputs/reports/report_benchmark_20260926T112228Z/lingbot_persistent_archive --window-size 10 --process-every 10 --max-frames 20 --max-windows 2 --benchmark-label lingbot_persistent_archive --resource-sample-every 1
+PYTHONPATH=Integrated_version python Integrated_version/experiments/run_live_mapping_replay.py --backend lingbot --persistent-worker --source-dir data/frames/20260818_frames --model-path models/lingbot-map.pt --lingbot-root lingbot-map-main --output-dir outputs/reports/report_benchmark_20260926T112228Z/lingbot_persistent_fast --window-size 10 --process-every 10 --max-frames 20 --max-windows 2 --benchmark-label lingbot_persistent_fast --resource-sample-every 1
+
+# ORB
+Direct ORB localize_frame on outputs/scenes/scene_20260818/mapping/preprocessed/000000.png
+ORB replay on first 30 frames of data/videos/20260818.mp4
