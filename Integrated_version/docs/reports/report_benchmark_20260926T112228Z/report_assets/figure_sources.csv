@@ -1,0 +1,7 @@
+figure,png,svg,source_files,fields,samples,limitation
+Figure 1 Architecture,fig1_architecture.png,fig1_architecture.svg,benchmark_report.md; rtsp_summary.json; pipeline_summary.csv; orb_localization_summary.json,pipeline component statuses,N/A,Architecture diagram; not a measured timing chart
+Figure 2 Map Growth,fig2_map_growth.png,fig2_map_growth.svg,map_growth.csv,"update_index,map_version,voxel_count,fused_points,output_bytes",34,Prediction replay only; not online RGB inference
+Figure 3 Replay Latency,fig3_replay_latency.png,fig3_replay_latency.svg,map_growth.csv; pipeline_summary.csv,"update_index,latency_ms,mean_latency_ms,p50_latency_ms,p95_latency_ms",34,Prediction replay; source limited to 43 frames
+Figure 4 Persistent Stage Latency,fig4_persistent_stage_latency.png,fig4_persistent_stage_latency.svg,latency_by_stage.csv,"image_prepare_ms,inference_ms,archive_write_ms,point_extract_ms,fusion_output_latency_ms,backend_total_ms,session_model_load_ms",4,Only two windows per LingBot condition
+Figure 5 Memory And Output Growth,fig5_memory_output_growth.png,fig5_memory_output_growth.svg,memory_growth.csv; memory_trend_summary.json,"rss_mb,output_bytes,voxel_count,latency_ms",34,Update-aligned GPU memory NOT VERIFIED
+Figure 6 ORB Status And Confidence,fig6_orb_status_confidence.png,fig6_orb_status_confidence.svg,orb_localization_summary.json,"video_replay.records frame_id,status,confidence,latency_ms,match_count,inlier_count",30,Same-scene accepted ratio; no physical accuracy

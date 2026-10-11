@@ -1,0 +1,15 @@
+flowchart LR
+  A[RTSP / video frame input] --> B[Latest-frame queue]
+  B --> C[ORB relocalization]
+  C --> D[PoseGate]
+  D --> E[NavigationManager / Pure Pursuit]
+  E --> F[Dry-run ESP32 command log]
+  B --> G[LingBot-MAP windowed worker]
+  G --> H[Local world_points]
+  H --> I[Incremental voxel fusion]
+  I --> J[live_points.npz / live_map.json]
+  J --> K[Web frontend]
+  C --> L[live_pose.json]
+  L --> K
+  M[Safety stop] --> F
+  D --> M

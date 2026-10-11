@@ -1,0 +1,30 @@
+{
+  "generated_at_utc": "2026-09-27T05:47:09.870176Z",
+  "assets_dir": "Integrated_version/docs/reports/report_benchmark_20260926T112228Z/report_assets",
+  "source_report_dir": "Integrated_version/docs/reports/report_benchmark_20260926T112228Z",
+  "current_git_status": "## codex/schema-consolidation-latest...origin/codex/schema-consolidation-latest\n?? Integrated_version/docs/reports/report_benchmark_20260926T112228Z/report_assets/",
+  "current_git_head": "9f6b09cc3957d34de586c28cf405c9fb37847146",
+  "benchmark_recorded_commit": "ba8ed03adcfe9cfe68401a0d48320f05ce7e9fae",
+  "benchmark_recorded_status_short": "M Integrated_version/runtime/lingbot_map_session.py\n M Integrated_version/runtime/live_pointcloud_runtime.py\n M Integrated_version/tests/test_rgb_pointcloud.py",
+  "files": [
+    "README.md",
+    "data_inventory.md",
+    "fig1_architecture.mmd",
+    "fig1_architecture.png",
+    "fig1_architecture.svg",
+    "fig2_map_growth.png",
+    "fig2_map_growth.svg",
+    "fig3_replay_latency.png",
+    "fig3_replay_latency.svg",
+    "fig4_persistent_stage_latency.png",
+    "fig4_persistent_stage_latency.svg",
+    "fig5_memory_output_growth.png",
+    "fig5_memory_output_growth.svg",
+    "fig6_orb_status_confidence.png",
+    "fig6_orb_status_confidence.svg",
+    "figure_sources.csv",
+    "missing_data_checklist.md",
+    "verification_explanation.md",
+    "verification_matrix.csv"
+  ]
+}

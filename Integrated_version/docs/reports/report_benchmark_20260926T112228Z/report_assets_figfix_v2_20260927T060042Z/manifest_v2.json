@@ -1,0 +1,21 @@
+{
+  "assets_dir": "Integrated_version/docs/reports/report_benchmark_20260926T112228Z/report_assets_figfix_v2_20260927T060042Z",
+  "generated_from": "Integrated_version/docs/reports/report_benchmark_20260926T112228Z",
+  "files": [
+    "README.md",
+    "fig1_architecture_branches_v2.mmd",
+    "fig1_architecture_branches_v2.png",
+    "fig1_architecture_branches_v2.svg",
+    "fig2_map_growth_split_v2.png",
+    "fig2_map_growth_split_v2.svg",
+    "fig3_prediction_long300_latency_v2.png",
+    "fig3_prediction_long300_latency_v2.svg",
+    "fig4_persistent_grouped_latency_v2.png",
+    "fig4_persistent_grouped_latency_v2.svg",
+    "fig5_memory_output_v2.png",
+    "fig5_memory_output_v2.svg",
+    "fig6_orb_confidence_status_v2.png",
+    "fig6_orb_confidence_status_v2.svg",
+    "figure_sources_v2.csv"
+  ]
+}

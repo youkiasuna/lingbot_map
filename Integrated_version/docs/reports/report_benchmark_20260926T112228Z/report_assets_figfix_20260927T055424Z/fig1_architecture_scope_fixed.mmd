@@ -1,0 +1,18 @@
+flowchart LR
+  subgraph Target_Architecture_Flow
+    A[RTSP / video frames] --> B[Latest-frame queue]
+    B --> C[ORB relocalization]
+    C --> D[PoseGate + Navigation]
+    D --> E[Dry-run safety command log]
+    B --> F[LingBot-MAP window worker]
+    F --> G[Voxel fusion + live map]
+    G --> H[Frontend viewer]
+  end
+  subgraph Evidence_Scope_This_Benchmark
+    T[36 unit tests OK]
+    P[Prediction replay: 34 updates from existing world_points]
+    L[LingBot worker: 2 window profiling samples]
+    O[ORB same-scene replay: 30/30 accepted]
+    R[RTSP live run: NOT VERIFIED]
+    Q[Physical accuracy: NOT AVAILABLE]
+  end

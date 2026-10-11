@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run persistent RTSP-only live 3D mapping without localization or motor control."""
+"""Run persistent live/video 3D mapping without motor control."""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +24,8 @@ from runtime.streaming_mapping_worker import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--url", required=True, help="RTSP URL or camera index")
+    parser.add_argument("--url", required=True, help="RTSP URL, camera index, or video file")
+    parser.add_argument("--source-mode", choices=("auto", "live", "video"), default="auto", help="auto treats existing file paths as deterministic video replay")
     parser.add_argument("--model-path", required=True, type=Path)
     parser.add_argument("--lingbot-root", required=True, type=Path)
     parser.add_argument("--live-map-dir", type=Path, default=Path("outputs/runtime/online_navigation"))
@@ -50,6 +51,29 @@ def parse_args() -> argparse.Namespace:
 
 def camera_source(value: str) -> int | str:
     return int(value) if value.isdigit() else value
+
+
+def resolve_source_mode(value: str, requested: str) -> str:
+    if requested != "auto":
+        return requested
+    if value.isdigit():
+        return "live"
+    if Path(value).is_file():
+        return "video"
+    return "live"
+
+
+def capture_metadata(cv2, capture, source_mode: str) -> dict[str, object]:
+    width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+    height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+    fps = float(capture.get(cv2.CAP_PROP_FPS) or 0.0)
+    frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    return {
+        "source_mode": source_mode,
+        "source_fps": round(fps, 3) if fps > 0 else None,
+        "source_frame_count": frame_count if source_mode == "video" and frame_count > 0 else None,
+        "source_resolution": [width, height] if width > 0 and height > 0 else None,
+    }
 
 
 def write_live_frame(cv2, frame, output_dir: Path) -> None:
@@ -93,7 +117,33 @@ def main() -> int:
     if args.exploration_frame_every <= 0:
         raise SystemExit("exploration-frame-every must be positive")
 
+    source_mode = resolve_source_mode(args.url, args.source_mode)
+    source = camera_source(args.url)
     live_manager = LiveMapManager(args.live_map_dir, max_points=args.max_points)
+    live_manager.publish_status(
+        mode="INITIALIZING_MODEL",
+        mapping_only=True,
+        camera_connected=False,
+        source_mode=source_mode,
+        model_status="loading",
+    )
+    if source_mode == "video":
+        preview_capture = open_capture(cv2, source, args.read_timeout_ms)
+        if preview_capture is not None:
+            preview_metadata = capture_metadata(cv2, preview_capture, source_mode)
+            ok, preview_frame = preview_capture.read()
+            if ok and preview_frame is not None:
+                write_live_frame(cv2, preview_frame, args.live_map_dir)
+                live_manager.publish_status(
+                    mode="INITIALIZING_MODEL",
+                    mapping_only=True,
+                    camera_connected=True,
+                    model_status="loading",
+                    video_preview_ready=True,
+                    last_frame_unix=time.time(),
+                    **preview_metadata,
+                )
+            preview_capture.release()
     exploration_recorder = (
         ExplorationFrameRecorder(
             args.exploration_dir.resolve(),
@@ -105,12 +155,23 @@ def main() -> int:
         voxel_size_m=args.voxel_size_m,
         max_points=args.max_points,
     )
-    session = LingBotMapSession(LingBotMapSessionConfig(
-        model_path=args.model_path.resolve(),
-        lingbot_root=args.lingbot_root.resolve(),
-        write_archive=False,
-        extract_rgb=args.extract_rgb,
-    ))
+    try:
+        session = LingBotMapSession(LingBotMapSessionConfig(
+            model_path=args.model_path.resolve(),
+            lingbot_root=args.lingbot_root.resolve(),
+            write_archive=False,
+            extract_rgb=args.extract_rgb,
+        ))
+    except Exception as exc:
+        live_manager.publish_status(
+            mode="ERROR",
+            mapping_only=True,
+            camera_connected=False,
+            source_mode=source_mode,
+            model_status="load_failed",
+            worker_error=f"{type(exc).__name__}: {exc}",
+        )
+        raise
     localizer = None
     if args.localization_mapping_dir is not None:
         localizer = OrbRelocalizer(
@@ -202,12 +263,12 @@ def main() -> int:
     )
     worker.start()
 
-    source = camera_source(args.url)
     capture = None
     next_submit = 0.0
     print(json.dumps({
         "event": "live_mapping_started",
         "url": args.url,
+        "source_mode": source_mode,
         "live_map_dir": str(args.live_map_dir),
         "model_load_ms": session.model_load_ms,
         "mode": "MAPPING_WITH_OPTIONAL_LOCALIZATION" if localizer is not None else "MAPPING_ONLY",
@@ -244,12 +305,31 @@ def main() -> int:
                     camera_connected=True,
                     reconnect_count=0,
                     reader_error=None,
+                    **capture_metadata(cv2, capture, source_mode),
                 )
+
+            if source_mode == "video" and next_submit > 0.0:
+                delay_s = next_submit - time.perf_counter()
+                if delay_s > 0.0:
+                    time.sleep(delay_s)
 
             ok, frame = capture.read()
             if not ok or frame is None:
                 capture.release()
                 capture = None
+                if source_mode == "video":
+                    reader_error.append("video_eof")
+                    live_manager.publish_status(
+                        mode="STOPPED",
+                        mapping_only=True,
+                        camera_connected=False,
+                        submitted_frames=submitted,
+                        processed_windows=worker.processed_windows,
+                        reconnect_count=reconnects,
+                        reader_error="video_eof",
+                        source_mode=source_mode,
+                    )
+                    break
                 reconnects += 1
                 live_manager.publish_status(
                     mode="RECONNECTING",
@@ -265,9 +345,12 @@ def main() -> int:
                 continue
 
             now = time.perf_counter()
-            if now < next_submit:
-                continue
-            next_submit = now + 1.0 / args.fps
+            if source_mode == "live":
+                if now < next_submit:
+                    continue
+                next_submit = now + 1.0 / args.fps
+            else:
+                next_submit = now + 1.0 / args.fps
             write_live_frame(cv2, frame, args.live_map_dir)
             capture_timestamp = time.time()
             if exploration_recorder is not None:
@@ -295,6 +378,7 @@ def main() -> int:
                 localization_dropped_frames=orb_worker.dropped_frames if orb_worker is not None else 0,
                 exploration_saved_frames=exploration_recorder.saved_frames if exploration_recorder is not None else 0,
                 reconnect_count=reconnects,
+                source_mode=source_mode,
             )
     except KeyboardInterrupt:
         print("\nStopping live mapping.", flush=True)
@@ -313,6 +397,7 @@ def main() -> int:
             processed_windows=worker.processed_windows,
             reconnect_count=reconnects,
             exploration_saved_frames=exploration_recorder.saved_frames if exploration_recorder is not None else 0,
+            source_mode=source_mode,
             reader_error=reader_error[0] if reader_error else None,
             worker_error=str(worker.error) if worker.error else None,
         )
