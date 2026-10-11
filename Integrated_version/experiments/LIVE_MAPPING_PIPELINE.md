@@ -9,17 +9,15 @@ GPU job; this is the correct integration boundary for the first hardware test.
 
 Run one command in the `lingbot-map` environment:
 
-```bash
-cd /media/ee303/1tb/lingbot_map
-
-conda run --no-capture-output -n lingbot-map python -B Integrated_version/experiments/run_live_mapping_pipeline.py \
-  --url http://192.168.50.98:8080/video \
-  --session-name ipwebcam \
-  --fps 5 \
-  --batch-frames 30 \
-  --process-every 30 \
-  --max-frames 0 \
-  --camera-num-iterations 1 \
+```powershell
+conda run --no-capture-output -n lingbot-map python -B Integrated_version/experiments/run_live_mapping_pipeline.py `
+  --url http://PHONE_IP:8080/video `
+  --session-name ipwebcam `
+  --fps 5 `
+  --batch-frames 30 `
+  --process-every 30 `
+  --max-frames 0 `
+  --camera-num-iterations 1 `
   --use-sdpa
 ```
 
@@ -40,9 +38,8 @@ Each new session is temporary and has a unique suffix. The exact path is printed
 
 Start a static server in another terminal:
 
-```bash
-cd /media/ee303/1tb/lingbot_map
-python3 -m http.server 18116 --bind 127.0.0.1
+```powershell
+conda run --no-capture-output -n lingbot-map python -m http.server 18116 --bind 127.0.0.1
 ```
 
 Open the viewer using the actual temporary session name:

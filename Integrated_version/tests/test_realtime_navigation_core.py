@@ -6,10 +6,10 @@ import tempfile
 import time
 import unittest
 
-from hardware.esp32_adapter import Esp32Adapter, Esp32Config
-from localization.pose_gate import PoseGate, PoseGateConfig
-from planner.pure_pursuit import PurePursuit, PurePursuitConfig, TwistCommand
-from runtime.navigation_manager import NavigationManager
+from Integrated_version.hardware.esp32_adapter import Esp32Adapter, Esp32Config
+from Integrated_version.localization.pose_gate import PoseGate, PoseGateConfig
+from Integrated_version.planner.pure_pursuit import PurePursuit, PurePursuitConfig, TwistCommand
+from Integrated_version.runtime.navigation_manager import NavigationManager
 
 
 class RealtimeNavigationCoreTests(unittest.TestCase):
@@ -73,6 +73,24 @@ class RealtimeNavigationCoreTests(unittest.TestCase):
         )
         self.assertEqual(state.mode, "LOCALIZATION_LOST")
         self.assertEqual(state.command.status, "safety_stop")
+
+    def test_pose_gate_reset_starts_a_new_jump_history(self) -> None:
+        gate = PoseGate(PoseGateConfig(max_position_jump_m=0.5))
+        first = {
+            "status": "localized",
+            "timestamp_unix": 100.0,
+            "best": {"confidence": 0.9, "position_xyz": [0.0, 0.0, 0.0], "yaw_deg": 0.0},
+        }
+        moved = {
+            "status": "localized",
+            "timestamp_unix": 100.0,
+            "best": {"confidence": 0.9, "position_xyz": [2.0, 0.0, 0.0], "yaw_deg": 0.0},
+        }
+
+        self.assertTrue(gate.evaluate(first, now_unix=100.0).accepted)
+        self.assertEqual(gate.evaluate(moved, now_unix=100.0).reason, "position_jump")
+        gate.reset()
+        self.assertTrue(gate.evaluate(moved, now_unix=100.0).accepted)
 
     def test_esp32_adapter_rejects_hardware_mode(self) -> None:
         with self.assertRaises(ValueError):

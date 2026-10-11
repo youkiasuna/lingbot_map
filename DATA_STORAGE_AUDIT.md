@@ -1,6 +1,6 @@
 # Data Storage Audit
 
-更新日期：2026-09-15。使用者已批准分類搬移、路徑更新、指定清理與展示服務重啟。
+資料盤點基準：2026-09-15。2026-10-11 更新程式模組整理與驗證；分類搬移、路徑更新、指定清理與展示服務重啟依先前授權執行。
 
 ## 整理結果
 
@@ -54,9 +54,9 @@
 - 批次 ORB 預設不產生逐張 HTML，需明確加 `--write-viewers`。
 
 ```bash
-python3 -B Integrated_version/experiments/demo_storage.py list
-python3 -B Integrated_version/experiments/demo_storage.py save outputs/tmp/<session>
-python3 -B Integrated_version/experiments/demo_storage.py discard outputs/tmp/<session>
+python3 -B Integrated_version/storage/demo_storage.py list
+python3 -B Integrated_version/storage/demo_storage.py save outputs/tmp/<session>
+python3 -B Integrated_version/storage/demo_storage.py discard outputs/tmp/<session>
 ```
 
 ## 尚未刪除
@@ -69,7 +69,7 @@ python3 -B Integrated_version/experiments/demo_storage.py discard outputs/tmp/<s
 
 ## 驗證
 
-- 19 項單元測試通過，包含原有實驗／導航及新增保存／目錄分類測試。
+- （2026-09-15 當次驗證）19 項單元測試通過，包含原有實驗／導航及新增保存／目錄分類測試。
 - 所有場景影像連結與 4 個 NPZ 的來源影像路徑有效。
 - 18115 已使用新版啟動；真實場景 query 定位、規劃 API、7 個總覽 HTML 與分類 PLY 回應正常。
 - 保存／捨棄 API 通過；正式導航地圖與研究結果檔案 hash 前後一致。
@@ -83,3 +83,26 @@ python3 -B Integrated_version/experiments/demo_storage.py discard outputs/tmp/<s
 - 170 個仍留在 Git 暫存區的舊資料項目已移除，本機資料不受影響。
 - 大型模型／NPZ／PLY、執行狀態、環境與快取亦有補充屏蔽規則。
 - 本機工具快照仍可能保留舊資料，但不會隨正常推送 `main` 上傳；本次未清除快照或改寫既有提交歷史。
+
+## 2026-10-11 程式模組整理與驗證
+
+- `Integrated_version/` 現在依 map、localization、planner、runtime、web、hardware、experiments、configs、shared、storage、docs、tests 分區；各模組入口、責任與驗證命令見其 `README.md`。
+- `experiments/README.md` 收斂為模組入口與文件索引；完整 ORB/PnP 與彩色定位研究規約保留於 `LOCALIZATION_BASELINE.md`，手機擷取和 online replay 各有獨立流程文件。
+- 車控程式集中至 `Integrated_version/hardware/`；設定與 runtime contract 歸入 `configs/`、`docs/`；研究背景與回歸測試歸入 `experiments/`、`tests/`。
+- 移除已由整合模組取代的 `map_localization_test/` 原型、舊 `visual_navigation/` 說明/設定入口，以及無引用的日期專用分析腳本；`Tony's project/` 保持不變。
+- Windows 未授予 symlink 權限時，資料拆分使用 hard link，跨磁碟時複製；Demo 保存也採用 hard link/複製 fallback。fallback 不會以 session 清理動作刪除 raw capture 原件。
+- planner、硬體與 Web 入口改用明確 package imports；ESP32 命令表及 TCP request/reply 集中於 `hardware/esp32_protocol.py`，避免 CLI、兩種 Web 控制入口各自實作協定。
+- AST 引用盤點確認並移除 7 個未使用 imports；保留 `streaming_mapping_worker.py` 在 `TYPE_CHECKING` 下供 forward-reference 使用的 import。
+- runtime、hardware、web、experiments 內部改用明確 `Integrated_version.*` 匯入；Windows 的 replay peak-RSS 指標改讀系統 peak working set，POSIX 仍使用 `resource`。
+- 移除零引用的 `scan_bounds_and_floor()`、已被 managed session API 取代的 `make_session_dir()`，以及未接入 runtime 且與互動 mock 重複的 localization provider scaffold；replay runner 改以 `LocalPointCloudBackend` Protocol 表示 backend 邊界。
+- 五個地圖輸出點改共用 `map/pgm_io.py`，runtime 三個相機入口共用 `runtime/video_source.py`；影像讀取與原子 JSON/NPZ 寫入集中於 `shared/`，map axis/mask/vector 幾何函式集中於 `map/geometry.py`。
+- ORB/PnP localizer 移入 `localization/`，由 runtime、Web、實驗分析與測試共用，解除定位演算法對 `experiments/` 的反向依賴。
+- LingBot-MAP 載入與 archive 輸出契約集中至 `runtime/lingbot_map_integration.py`，實驗 runner 共用它；runtime 不再反向匯入實驗 runner，模組依賴圖無跨模組循環。
+- Demo/擷取 session 的暫存、保存與刪除安全規則集中至 `storage/demo_storage.py`，由 Web、capture 與 mapping pipeline 共用。
+- 將只顯示串流的 `phone_video_receiver.py` 歸類為 `experiments/preview_phone_stream.py`；它不保存資料也不轉送串流，與持久化擷取及即時 mapping pipeline 的責任分開。
+- 移除 dry-run-only `Esp32Adapter` 中沒有呼叫端的 watchdog state/query；車體 JSON 的 `command_timeout_s` 仍是未接線設定模板，文件已明確標示不會生效。
+- 移除 `LiveMapManager` 沒有讀取端的 `map_ready` property/status 欄位；版本、點雲檔名與品質仍是已發布狀態契約。
+- Web 兩個獨立 server 共用 `web/http_responses.py`，統一 UTF-8 JSON、Content-Length 和 no-cache headers，路由及錯誤語意仍各自維持。
+- `shared/json_io.py` 統一 pose/manifest、實驗、Web API、LiveMapManager 的 JSON 寫入；`shared/npz_io.py` 統一即時地圖和 LingBot prediction archive 寫入，兩者皆使用唯一暫存檔、fsync 與失敗清理。
+- 即時預覽影格改用具 `.jpg` 副檔名的唯一暫存檔；避免 OpenCV 把 `.tmp` 當成編碼格式，並確保編碼失敗不覆蓋上一張有效影格。
+- 驗證：`python -m unittest discover -s Integrated_version/tests -v`，59 項通過，無 skip；含 occupancy builder、pose JSON、HTTP response、PGM/atomic JSON/NPZ、OpenCV JPEG 寫入、video source、geometry、pose reset、map write-failure recovery 與模組依賴白名單 fixtures。37 個應用 CLI 的 `--help` 從 repo 外工作目錄全數通過；`pip check`、`compileall` 和 `git diff --check` 亦通過。尚未執行 GPU 建圖、實機相機或車體測試。

@@ -53,23 +53,23 @@
 
 從 repository root 執行：
 
-    conda run -n lingbot-map python Integrated_version/experiments/run_lingbot_online_replay.py \
-      --write-every 5 \
-      --sample-stride 8 \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/run_lingbot_online_replay.py `
+      --write-every 5 `
+      --sample-stride 8 `
       --output-dir outputs/scenes/scene_20260818/online_replay
 
 快速測試：
 
-    conda run -n lingbot-map python Integrated_version/experiments/run_lingbot_online_replay.py \
-      --max-frames 12 \
-      --write-every 4 \
-      --sample-stride 12 \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/run_lingbot_online_replay.py `
+      --max-frames 12 `
+      --write-every 4 `
+      --sample-stride 12 `
       --output-dir outputs/scenes/scene_20260818/online_replay_test
 
 產生 online replay 3D 俯視 viewer：
 
-    conda run -n lingbot-map python Integrated_version/experiments/export_online_replay_3d_viewer.py \
-      --replay-dir outputs/scenes/scene_20260818/online_replay \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/export_online_replay_3d_viewer.py `
+      --replay-dir outputs/scenes/scene_20260818/online_replay `
       --max-points-per-frame 18000
 
 輸出 3D viewer：
@@ -78,8 +78,8 @@
 
 產生 online replay 2D 對照 viewer：
 
-    conda run -n lingbot-map python Integrated_version/experiments/export_online_replay_viewer.py \
-      --replay-dir outputs/scenes/scene_20260818/online_replay \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/export_online_replay_viewer.py `
+      --replay-dir outputs/scenes/scene_20260818/online_replay `
       --scale 10
 
 輸出 viewer：

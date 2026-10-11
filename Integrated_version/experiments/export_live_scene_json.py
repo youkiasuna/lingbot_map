@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 import argparse
-import json
 import math
-import os
 import struct
+import sys
 import time
 from pathlib import Path
 from typing import BinaryIO
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.shared.json_io import atomic_write_json
 
 
 PLY_TYPES = {
@@ -19,13 +24,6 @@ PLY_TYPES = {
     "int": "i", "int32": "i", "uint": "I", "uint32": "I",
     "float": "f", "float32": "f", "double": "d", "float64": "d",
 }
-
-
-def atomic_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
-    os.replace(temporary, path)
 
 
 def read_header(handle: BinaryIO) -> tuple[str, int, list[tuple[str, str]]]:
@@ -134,7 +132,7 @@ def main() -> int:
         "bounds": bounds(points),
         "points": points,
     }
-    atomic_json(args.output.resolve(), payload)
+    atomic_write_json(args.output.resolve(), payload)
     print(f"Wrote {args.output.resolve()} ({len(points)} sampled points)")
     return 0
 

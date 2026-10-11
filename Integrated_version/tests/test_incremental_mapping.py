@@ -4,8 +4,8 @@ import tempfile
 import unittest
 import numpy as np
 
-from runtime.incremental_map_fusion import IncrementalVoxelMap
-from runtime.local_pointcloud_replay import PredictionPointCloudReplay
+from Integrated_version.runtime.incremental_map_fusion import IncrementalVoxelMap
+from Integrated_version.runtime.local_pointcloud_replay import PredictionPointCloudReplay
 
 
 class IncrementalMappingTests(unittest.TestCase):

@@ -11,18 +11,18 @@ from pathlib import Path
 from typing import Any
 
 
-INTEGRATED_ROOT = Path(__file__).resolve().parents[1]
-if str(INTEGRATED_ROOT) not in sys.path:
-    sys.path.insert(0, str(INTEGRATED_ROOT))
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from experiments.localize_query_in_3d_viewer import (  # noqa: E402
+from Integrated_version.experiments.localize_query_in_3d_viewer import (  # noqa: E402
     build_viewer_html,
     camera_centers,
     load_archive,
     sample_world_points,
 )
-from experiments.orb_keyframe_localizer import OrbKeyframeLocalizer, result_to_pose  # noqa: E402
-from localization.localizer_interface import FilePosePublisher  # noqa: E402
+from Integrated_version.localization.orb_keyframe_localizer import OrbKeyframeLocalizer, result_to_pose  # noqa: E402
+from Integrated_version.localization.localizer_interface import FilePosePublisher  # noqa: E402
 
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}

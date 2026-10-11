@@ -20,16 +20,17 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-INTEGRATED_ROOT = Path(__file__).resolve().parents[1]
-if str(INTEGRATED_ROOT) not in sys.path:
-    sys.path.insert(0, str(INTEGRATED_ROOT))
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from experiments.orb_keyframe_localizer import (  # noqa: E402
+from Integrated_version.localization.orb_keyframe_localizer import (  # noqa: E402
     confidence_score,
     extract_orb,
     match_descriptors,
     pose_from_pnp,
 )
+from Integrated_version.shared.image_io import read_bgr_image  # noqa: E402
 
 
 PLY_TYPES = {
@@ -126,7 +127,7 @@ def render_view(
 
 def localize(query_path: Path, points, colors, intrinsics, extrinsics, image_size, stride, args):
     width, height = image_size
-    query = cv2.imread(str(query_path), cv2.IMREAD_COLOR)
+    query = read_bgr_image(query_path)
     if query is None:
         raise ValueError(f"Failed to read query image: {query_path}")
     query = cv2.resize(query, (width, height), interpolation=cv2.INTER_AREA)

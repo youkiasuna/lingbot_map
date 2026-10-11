@@ -74,15 +74,15 @@
 
     outputs/scenes/scene_20260818/inputs/query_images/
 
-這些影像是連到 data/frames/20260818_frames/ 的 symlink。
+這些影像優先以 symlink 連到 `data/frames/20260818_frames/`。Windows 未授予 symlink 權限時，會改用 hard link；跨磁碟無法建立 hard link 時則複製影像。請以資料來源和 `split_manifest.json` 為準，不要假設 `inputs/` 一定是 symlink。
 
 ## 使用的舊程式
 
-- experiments/orb_keyframe_localizer.py: ORB + PnP
+- localization/orb_keyframe_localizer.py: ORB + PnP
 - planner/grid_navigation.py: A* 與障礙物距離成本
 - localization/localizer_interface.py: 統一 pose schema
 - outputs/maps/20260818_navigation_3d/: 由清理後 3D 點雲產生的 2D 可通行性地圖
-- car/car/pc_controller.py: 未來 ESP32 TCP client 的參考
+- Integrated_version/hardware/pc_controller.py: ESP32 TCP client 的手動控制參考
 
 ## 重要限制
 

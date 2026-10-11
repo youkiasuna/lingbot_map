@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from localization.pose_gate import GatedPose, PoseGate
-from planner.pure_pursuit import PurePursuit, TwistCommand
+from Integrated_version.localization.pose_gate import GatedPose, PoseGate
+from Integrated_version.planner.pure_pursuit import PurePursuit, TwistCommand
 
 
 @dataclass

@@ -35,13 +35,12 @@ find outputs/scenes/scene_20260818 -name predictions.npz -print
 執行短 replay：
 
 ```bash
-PYTHONPATH=Integrated_version \
 python Integrated_version/experiments/run_live_mapping_replay.py \
   --mapping-package outputs/scenes/scene_20260818/mapping/predictions.npz \
   --output-dir outputs/runtime/live_mapping_replay_test \
   --window-size 10 \
   --process-every 5 \
-  --max-frames 43 \\
+  --max-frames 43 \
   --benchmark-label baseline
 ```
 
@@ -70,8 +69,6 @@ runner 現在會記錄：
 可執行長一點的 replay：
 
 ```bash
-rm -rf outputs/runtime/live_mapping_benchmark
-PYTHONPATH=Integrated_version \\
 python Integrated_version/experiments/run_live_mapping_replay.py \\
   --mapping-package outputs/scenes/scene_20260818/mapping/predictions.npz \\
   --output-dir outputs/runtime/live_mapping_benchmark \\
@@ -110,7 +107,7 @@ python -m json.tool outputs/runtime/live_mapping_benchmark/replay_summary.json
 
 ## 後續接入
 
-目前 runner 已透過 `runtime/local_pointcloud_backend.py` 的 `PredictionNpzBackend` 取得局部點雲，也支援 `LingBotMapBackend` 的離線 windowed inference。
+目前 runner 已透過 `Integrated_version/runtime/local_pointcloud_backend.py` 的 `PredictionNpzBackend` 取得局部點雲，也支援 `LingBotMapBackend` 的離線 windowed inference。
 
 1. 使用 `--backend lingbot` 以單一 window 測量真正 LingBot-MAP inference。
 2. 確認局部 `predictions.npz` 與 `world_points` 輸出。
@@ -136,25 +133,46 @@ python -m json.tool outputs/runtime/live_mapping_benchmark/replay_summary.json
 ```
 
 `replay_summary.json` 會根據 backend 分別說明：`prediction` 使用既有 world points；`lingbot` 則代表 selected windows 重新產生 predictions.npz，但仍屬 windowed offline inference，不是 streaming inference。
-\n## LingBot-MAP backend 單一 window 測試\n\n這個測試會實際呼叫現有 `run_lingbot_mapping.py`，請先只執行一個 window：\n\n```bash\nPYTHONPATH=Integrated_version \\\npython Integrated_version/experiments/run_live_mapping_replay.py \\\n  --backend lingbot \\\n  --source-dir data/frames/20260818_frames \\\n  --model-path models/lingbot-map.pt \\\n  --lingbot-root lingbot-map-main \\\n  --output-dir outputs/runtime/live_mapping_lingbot_test \\\n  --window-size 10 \\\n  --process-every 10 \\\n  --max-frames 10 \\\n  --max-windows 1 \\\n  --benchmark-label lingbot_single_window\n```\n\n這會使用 GPU 與產生局部 mapping package；實際 inference latency、GPU memory 與輸出是否成功必須在 RTX 3090 主機測試，目前為 `NOT VERIFIED`。\n
+
+## LingBot-MAP backend 單一 window 測試
+
+這個測試會實際呼叫現有 `run_lingbot_mapping.py`，請先只執行一個 window：
+
+```powershell
+$env:PYTHONPATH = "Integrated_version"
+conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/run_live_mapping_replay.py `
+  --backend lingbot `
+  --source-dir data/frames/20260818_frames `
+  --model-path models/lingbot-map.pt `
+  --lingbot-root lingbot-map-main `
+  --output-dir outputs/runtime/live_mapping_lingbot_test `
+  --window-size 10 `
+  --process-every 10 `
+  --max-frames 10 `
+  --max-windows 1 `
+  --benchmark-label lingbot_single_window
+```
+
+這會使用 GPU 與產生局部 mapping package；實際 inference latency、GPU memory 與輸出是否成功必須在 RTX 3090 主機測試，目前為 `NOT VERIFIED`。
+
 
 ## 常駐 LingBot-MAP worker 測試
 
 加入 `--persistent-worker` 後，LingBot-MAP model 會在 backend 初始化時載入一次，後續 window 共用同一個 session：
 
-```bash
-PYTHONPATH=Integrated_version \\
-python Integrated_version/experiments/run_live_mapping_replay.py \\
-  --backend lingbot \\
-  --persistent-worker \\
-  --source-dir data/frames/20260818_frames \\
-  --model-path models/lingbot-map.pt \\
-  --lingbot-root lingbot-map-main \\
-  --output-dir outputs/runtime/live_mapping_persistent_test \\
-  --window-size 10 \\
-  --process-every 10 \\
-  --max-frames 20 \\
-  --max-windows 2 \\
+```powershell
+$env:PYTHONPATH = "Integrated_version"
+conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/run_live_mapping_replay.py `
+  --backend lingbot `
+  --persistent-worker `
+  --source-dir data/frames/20260818_frames `
+  --model-path models/lingbot-map.pt `
+  --lingbot-root lingbot-map-main `
+  --output-dir outputs/runtime/live_mapping_persistent_test `
+  --window-size 10 `
+  --process-every 10 `
+  --max-frames 20 `
+  --max-windows 2 `
   --benchmark-label persistent_two_windows
 ```
 

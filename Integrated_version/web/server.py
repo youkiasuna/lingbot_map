@@ -7,9 +7,7 @@ import argparse
 import json
 import math
 import mimetypes
-import os
 import sys
-import tempfile
 import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,11 +20,14 @@ except ImportError:
     np = None
 
 INTEGRATED_ROOT = Path(__file__).resolve().parents[1]
-PLANNER_DIR = INTEGRATED_ROOT / "planner"
-if str(PLANNER_DIR) not in sys.path:
-    sys.path.insert(0, str(PLANNER_DIR))
+REPOSITORY_ROOT = INTEGRATED_ROOT.parent
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from grid_navigation import plan_path
+from Integrated_version.planner.grid_navigation import plan_path
+from Integrated_version.shared.json_io import atomic_write_json
+from Integrated_version.web.http_responses import send_bytes as write_bytes_response
+from Integrated_version.web.http_responses import send_json as write_json_response
 
 
 STATIC_DIR = INTEGRATED_ROOT / "web"
@@ -49,23 +50,6 @@ def read_json(path: Path) -> dict[str, object] | None:
     return payload
 
 
-def write_json(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = json.dumps(payload, indent=2).encode("utf-8") + b"\n"
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False) as handle:
-            temporary_path = Path(handle.name)
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary_path, path)
-    except Exception:
-        if temporary_path is not None and temporary_path.exists():
-            temporary_path.unlink()
-        raise
-
-
 class NavigationHandler(BaseHTTPRequestHandler):
     map_dir: Path | None
     live_dir: Path
@@ -80,13 +64,7 @@ class NavigationHandler(BaseHTTPRequestHandler):
         print(f"{self.address_string()} - {fmt % args}")
 
     def send_json(self, payload: dict[str, object], status: HTTPStatus = HTTPStatus.OK) -> None:
-        data = json.dumps(payload, indent=2).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(data)
+        write_json_response(self, payload, status)
 
     def send_error_json(self, status: HTTPStatus, message: str) -> None:
         self.send_json({"status": "error", "message": message}, status)
@@ -138,12 +116,7 @@ class NavigationHandler(BaseHTTPRequestHandler):
             return
         data = path.read_bytes()
         guessed_type = content_type or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", guessed_type)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(data)
+        write_bytes_response(self, data, guessed_type)
 
     def read_request_json(self) -> dict[str, object]:
         raw_length = self.headers.get("Content-Length", "0")
@@ -269,11 +242,11 @@ class NavigationHandler(BaseHTTPRequestHandler):
                 self.risk_weight,
             )
             result["planned_at_unix"] = time.time()
-            write_json(self.map_dir / "planned_path.json", result)
-            write_json(self.map_dir / "navigation_state.json", {
+            atomic_write_json(self.map_dir / "planned_path.json", result, indent=2)
+            atomic_write_json(self.map_dir / "navigation_state.json", {
                 "state": "GOAL_SELECTED",
                 "updated_at_unix": time.time(),
-            })
+            }, indent=2)
             self.send_json({"status": "ok", "path": result})
         except NavigationPreconditionError as exc:
             self.send_error_json(HTTPStatus.CONFLICT, str(exc))
@@ -302,7 +275,7 @@ class NavigationHandler(BaseHTTPRequestHandler):
             "controller": "not_connected",
             "path_waypoint_count": path.get("waypoint_count", 0),
         }
-        write_json(self.map_dir / "navigation_state.json", state)
+        atomic_write_json(self.map_dir / "navigation_state.json", state, indent=2)
         self.send_json({"status": "ok", "navigation": state})
 
     def handle_navigation_stop(self) -> None:
@@ -311,7 +284,7 @@ class NavigationHandler(BaseHTTPRequestHandler):
             "updated_at_unix": time.time(),
             "reason": "user_requested",
         }
-        write_json(self.map_dir / "navigation_state.json", state)
+        atomic_write_json(self.map_dir / "navigation_state.json", state, indent=2)
         self.send_json({"status": "ok", "navigation": state})
 
 

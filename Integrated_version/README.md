@@ -1,231 +1,58 @@
-# 整合版
+# 核心應用架構
 
-這個資料夾整理了目前可運作的地圖生成 + 姿態提供 + 網頁介面 + 路徑規劃的第一版整合流程。
-
-## 優先順序
-
-1. 地圖流程
-   - map/build_topdown_map.py
-2. 姿態契約
-   - localization/mock_pose_tracker.py
-3. 網頁介面
-   - web/server.py
-   - web/index.html
-   - web/app.js
-   - web/styles.css
-4. 路徑規劃
-   - planner/grid_navigation.py
-5. 障礙物距離場
-   - map/build_obstacle_distance.py
-6. 點雲品質整理
-   - map/clean_point_cloud_20260818.py
-7. 3D 可導航地圖
-   - map/build_3d_navigation_map.py
-
-## 這一階段的目標
-
-在保留目前可執行流程的前提下，把各個模組整理到同一個整合層中。
-目前的核心目標是讓流程：
-
-map -> current_pose -> web goal selection -> planned_path
-
-能夠穩定跑起來，再進一步接上真實視覺定位或 ESP32 控制。
-
-## 接下來的步驟
-
-- 驗證地圖生成
-- 驗證姿態 JSON 契約
-- 驗證網頁 UI 與規劃器整合
-- 產生每個地圖格到最近障礙物的距離
-- 以障礙物距離 penalty 讓 A* 偏好較安全的地面區域
-- 用 live localization 取代 mock pose
-- 連接馬達控制器 / ESP32
-
-## DDDMR perception 簡化版
-
-目前先借用 DDDMR `dddmr_perception_3d` 的核心概念，不直接引入 ROS 2：
+## 資料流
 
 ```text
-map.pgm + map.json
-   -> obstacle_distance.bin
-   -> 每個可走格到最近障礙物的距離
-   -> A* obstacle proximity penalty
-   -> planned_path.json
+camera frames -> runtime/mapping -> map artifacts -> localization -> planner
+                                                   -> web viewer/API
+planner -> navigation state -> hardware adapter (disabled by default)
 ```
 
-產生距離場：
+`Integrated_version/` 是本專案唯一持續維護的整合應用。領域程式放在對應模組；跨領域流程由 `runtime/` 或 `experiments/` 協調。`lingbot-map-main/` 是上游模型程式，不在此處複製或改寫。
 
-```bash
-python3 Integrated_version/map/build_obstacle_distance.py \\
-   --map-dir /tmp/lingbot_integrated_map
+內部跨模組引用使用 `Integrated_version.<module>` 套件路徑；CLI 腳本仍可從 repository root 直接執行，並由入口明確補上 repository root，不以 planner/config 等子目錄建立裸模組別名。
+
+## 模組索引
+
+| 目錄 | 責任 | 邊界 |
+| --- | --- | --- |
+| `map/` | 點雲與導航地圖轉換 | 不管理相機串流或網頁狀態 |
+| `localization/` | 視覺定位、姿態介面與接受門檻 | 不規劃路徑、不發送馬達命令 |
+| `planner/` | 格網路徑、追蹤控制與離線模擬 | 不讀取相機、不直接連 ESP32 |
+| `runtime/` | 即時/增量流程、元件生命週期與狀態協調 | 透過領域模組呼叫演算法 |
+| `web/` | HTTP API、Demo UI、地圖檢視 | UI/HTTP 不承載地圖演算法 |
+| `hardware/` | ESP32、手動控制與硬體 adapter | 自主馬達輸出仍受安全設定控制 |
+| `experiments/` | 可執行研究流程、擷取、分析及資料保存 | 實驗輸出寫入根目錄 `outputs/` |
+| `configs/` | 版本化設定與設定結構驗證 | 校正值未設定不代表硬體已校正 |
+| `shared/` | 跨模組共用的影像讀取與原子 JSON/NPZ I/O | 不放領域流程或執行入口 |
+| `storage/` | Demo 與擷取 session 的保存/捨棄生命週期 | 驗證 session 路徑，保護 raw capture 原件 |
+| `tests/` | 跨模組回歸測試 | 使用 unittest；不需要相機或 ESP32 |
+| `docs/` | 系統契約與較長的流程說明 | 模組操作指令放在模組 README |
+
+各模組的細節與單獨檢查方式見該目錄的 `README.md`。
+
+## 主要工作入口
+
+- 模擬網頁 Demo：`web/demo_server.py`
+- 手動地圖/規劃 API：`web/server.py`
+- 即時手機建圖：`experiments/run_live_mapping_pipeline.py`
+- 研究建圖：`experiments/run_research_pipeline.py`
+- 線上 mapping/replay runtime：`runtime/online_mapping_navigation.py`
+- 回歸測試：`python -m unittest discover -s Integrated_version/tests -v`
+
+## 跨模組契約
+
+- 導航格網與座標轉換由 `map/` 產生、`planner/` 消費。
+- 姿態資料格式與信心門檻由 `localization/` 定義；契約見 `docs/NAVIGATION_RUNTIME_CONTRACT.md`。
+- `runtime/` 負責串接狀態；HTTP/UI 由 `web/` 呈現。
+- 依賴維持單向無環：`shared/` 不依賴領域模組，`runtime/` 不反向匯入 `experiments/`，外層流程可呼叫 runtime 與領域模組；`test_package_imports.py` 會檢查循環依賴與模組依賴白名單。
+- 實驗和 Demo 資料預設寫到根目錄 `outputs/`；原始資料在 `data/`、權重在 `models/`，三者不進 Git。
+- 硬體輸出預設停用；不可由 Demo 的成功狀態推論為實車閉迴路已驗證。
+
+## 測試
+
+```powershell
+conda run --no-capture-output -n lingbot-map python -m unittest discover -s Integrated_version/tests -v
 ```
 
-啟用風險感知規劃：
-
-```bash
-python3 Integrated_version/planner/grid_navigation.py \\
-   --map-dir /tmp/lingbot_integrated_map \\
-   --goal-x 1.28 \\
-   --goal-y 0.16 \\
-   --use-obstacle-distance \\
-   --safety-radius-m 0.25 \\
-   --risk-weight 1.0
-```
-
-未加 `--use-obstacle-distance` 時，仍使用原本的 A* 行為。距離場是軟性成本，並不會取代 occupied cell 的硬性禁止。
-
-## 第一階段：20260818 點雲品質整理
-
-這一階段只處理點雲品質，不判斷牆面、雜物或地板類別：
-
-```text
-20260818_dense.ply
-   -> confidence filtering
-   -> deterministic stride sampling
-   -> 3 cm voxel merge
-   -> isolated voxel removal
-   -> 20260818_clean.ply
-```
-
-執行：
-
-```bash
-python3 Integrated_version/map/clean_point_cloud_20260818.py \\
-   --ply outputs/maps/20260818_dense.ply \\
-   --output-dir outputs/maps/20260818_clean \\
-   --confidence-threshold 1.0 \\
-   --voxel-size-m 0.03 \\
-   --min-points-per-voxel 2 \\
-   --max-input-points 5000000
-```
-
-輸出：
-
-- `20260818_clean/20260818_clean.ply`
-- `20260818_clean/cleaning_stats.json`
-- `20260818_clean/20260818_clean_height_viewer.html`
-
-目前實測約從 3.24 億個原始點整理成 121,231 個 voxel 點。座標約定為：20260818 使用 `-Y`，20260804 使用 `-Z`。下一階段再用清理後點雲做地板平面估計與 floor/obstacle/unknown 分類。
-
-## 第三階段：建立 3D 可導航地圖
-
-這一階段使用已完成地板 leveling 的點雲，將幾何資料轉成可導航資料：
-
-```text
-calibrated point cloud
-   -> floor / obstacle / unknown PLY
-   -> 2D occupancy projection
-   -> robot-radius inflation
-   -> obstacle distance field
-   -> A* / risk-aware A*
-```
-
-分類規則目前是幾何規則，不宣稱能區分牆和家具的語意：
-
-- 地板高度附近 `+/- 0.08 m`：floor
-- 高於地板 `0.10` 到 `2.0 m`：obstacle
-- 其他點：unknown
-- obstacle 以車體半徑 `0.20 m` 膨脹後才進入 occupancy map
-
-20260818（`-Y` 垂直）：
-
-```bash
-python3 Integrated_version/map/build_3d_navigation_map.py \\
-   --ply outputs/maps/20260818_calibrated_y/20260818_floor_calibrated.ply \\
-   --output-dir outputs/maps/20260818_navigation \\
-   --vertical-axis=-y \\
-   --resolution-m 0.05 \\
-   --robot-radius-m 0.20
-```
-
-20260804（`-Z` 垂直）：
-
-```bash
-python3 Integrated_version/map/build_3d_navigation_map.py \\
-   --ply outputs/maps/20260804_calibrated_z/20260804_floor_calibrated.ply \\
-   --output-dir outputs/maps/20260804_navigation \\
-   --vertical-axis=-z \\
-   --resolution-m 0.05 \\
-   --robot-radius-m 0.20
-```
-
-每份輸出包含：
-
-- `floor.ply`
-- `obstacle.ply`
-- `unknown.ply`
-- `map.pgm` / `map.json`
-- `navigation_map.pgm` / `navigation_map.json`
-- `obstacle_distance.bin` / `obstacle_distance.json`
-
-實測結果：20260818 產生 `134x128` 地圖、5,242 個 free cells；20260804 產生 `60x31` 地圖、736 個 free cells。`map.pgm` 可直接交給現有 planner，`obstacle_distance.bin` 可搭配 `--use-obstacle-distance` 使用。
-
-## 車子模型路徑模擬
-
-目前先使用差速車的 unicycle 模型：
-
-- 圓形車體 footprint，半徑預設 `0.20 m`
-- 最大線速度預設 `0.15 m/s`
-- 最大角速度預設 `0.7 rad/s`
-- 大轉角時先原地旋轉，再向下一個 waypoint 前進
-- 每 `0.05 s` 檢查一次車體是否進入 obstacle 或 unknown
-
-在 20260818 地圖執行一條已驗證的短路徑：
-
-```bash
-python3 Integrated_version/planner/simulate_vehicle_path.py \\
-   --map-dir outputs/maps/20260818_navigation \\
-   --start-x 0.225 \\
-   --start-y 1.775 \\
-   --goal-x -0.075 \\
-   --goal-y 1.975 \\
-   --use-obstacle-distance \\
-   --max-speed-mps 0.10
-```
-
-輸出：
-
-```text
-outputs/maps/20260818_navigation/simulated_vehicle_path.json
-```
-
-實測結果為 `goal_reached`，共 54 個模擬姿態點、2.65 秒。這是路徑與碰撞驗證，不會連接 ESP32，也不會輸出馬達命令。
-
-在 3D 網頁展示路線：
-
-```bash
-python3 Integrated_version/map/export_height_color_viewer.py \\
-   --ply outputs/maps/20260818_calibrated_y/20260818_floor_calibrated.ply \\
-   --output outputs/maps/20260818_navigation/20260818_navigation_viewer.html \\
-   --up-axis=-y \\
-   --floor-height 0 \\
-   --path-json outputs/maps/20260818_navigation/simulated_vehicle_path.json
-```
-
-瀏覽器開啟：
-
-```text
-http://127.0.0.1:18089/20260818_navigation/20260818_navigation_viewer.html
-```
-
-3D viewer 中紅色線是車輛模擬路線，綠色球是起點，紅色球是終點。
-
-## 網頁導航與姿態安全條件
-
-啟動網頁介面：
-
-```bash
-python3 Integrated_version/web/server.py \
-   --map-dir outputs/maps/20260818_navigation \
-   --use-obstacle-distance
-```
-
-`/api/plan` 與 `/api/navigation/start` 只接受 `current_pose.json` 中有效、`status=ok`、信心值至少 `0.5` 且 10 秒內更新的姿態。可用 `--min-pose-confidence` 與 `--max-pose-age-s` 調整門檻。`Start` 目前只更新導航狀態，尚不會送出 ESP32 馬達命令。
-
-規劃器會拒絕地圖外座標與斜切障礙角落；啟用距離場時，路徑簡化也會保留 A* 選擇的安全成本。
-
-回歸測試：
-
-```bash
-python3 -m unittest discover -s Integrated_version/tests -v
-```
+測試通過只表示程式契約與離線行為通過，不代表 GPU 推論、長時間相機串流或實車運動已驗證。

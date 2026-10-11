@@ -1,11 +1,6 @@
-import sys
 import unittest
-from pathlib import Path
 
-PLANNER_DIR = Path(__file__).resolve().parents[1] / "planner"
-sys.path.insert(0, str(PLANNER_DIR))
-
-from grid_navigation import GridMap, astar_pixels, has_line_of_sight, simplify_path
+from Integrated_version.planner.grid_navigation import GridMap, astar_pixels, has_line_of_sight, simplify_path
 
 
 FREE = 254

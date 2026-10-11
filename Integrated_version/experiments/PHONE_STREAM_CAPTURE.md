@@ -40,10 +40,10 @@ iPhone 也可以做階段 1，但重點是要拿到 OpenCV 能讀的影像 URL�
 
 執行 capture：
 
-    conda run -n lingbot-map python Integrated_version/experiments/capture_phone_stream.py \
-      --url rtsp://IPHONE_IP:8554/live \
-      --session-name iphone_test \
-      --fps 5 \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/capture_phone_stream.py `
+      --url rtsp://IPHONE_IP:8554/live `
+      --session-name iphone_test `
+      --fps 5 `
       --max-frames 30
 
 如果 app 提供 MJPEG URL，通常長這樣：
@@ -53,10 +53,10 @@ iPhone 也可以做階段 1，但重點是要拿到 OpenCV 能讀的影像 URL�
 
 執行 capture：
 
-    conda run -n lingbot-map python Integrated_version/experiments/capture_phone_stream.py \
-      --url http://IPHONE_IP:8080/video \
-      --session-name iphone_test \
-      --fps 5 \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/capture_phone_stream.py `
+      --url http://IPHONE_IP:8080/video `
+      --session-name iphone_test `
+      --fps 5 `
       --max-frames 30
 
 推薦方式 B：iPhone 當電腦 Webcam
@@ -79,15 +79,12 @@ iPhone 也可以做階段 1，但重點是要拿到 OpenCV 能讀的影像 URL�
 ## 電腦端 Capture
 
 從 repository root 執行：
-
-    cd /media/ee303/1tb/lingbot_map
-
 基本測試，存 30 張：
 
-    conda run -n lingbot-map python Integrated_version/experiments/capture_phone_stream.py \
-      --url http://PHONE_IP:8080/video \
-      --session-name phone_test \
-      --fps 5 \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/capture_phone_stream.py `
+      --url http://PHONE_IP:8080/video `
+      --session-name phone_test `
+      --fps 5 `
       --max-frames 30
 
 如果手機畫面方向不對：
@@ -101,6 +98,10 @@ iPhone 也可以做階段 1，但重點是要拿到 OpenCV 能讀的影像 URL�
     --preview
 
 目前遠端終端常沒有 DISPLAY，所以 preview 可能無法使用；不加 preview 也會正常存圖。
+
+只檢查串流畫面、不保存任何資料時，可使用獨立預覽工具：
+
+    conda run -n lingbot-map python Integrated_version/experiments/preview_phone_stream.py --url http://PHONE_IP:8080/video
 
 ## 輸出
 
@@ -135,27 +136,27 @@ Capture 完後，可以先用手機 frames 跑離線 LingBot-MAP。
 以下的 `phone_test` 必須換成終端顯示的已保存 session 名稱（包含唯一後綴）；
 尚未保存時則改用 `outputs/tmp/<實際名稱>/`。低階命令的輸出路徑由使用者指定，不自動清理：
 
-    conda run -n lingbot-map python Integrated_version/experiments/run_lingbot_mapping.py \
-      --image-folder outputs/live_sessions/phone_test/frames \
-      --model-path models/lingbot-map.pt \
-      --output-dir outputs/live_sessions/phone_test/mapping \
-      --camera-num-iterations 1 \
-      --use-sdpa \
-      --output-ply outputs/live_sessions/phone_test/mapping/rebuilt_colored_map.ply \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/run_lingbot_mapping.py `
+      --image-folder outputs/live_sessions/phone_test/frames `
+      --model-path models/lingbot-map.pt `
+      --output-dir outputs/live_sessions/phone_test/mapping `
+      --camera-num-iterations 1 `
+      --use-sdpa `
+      --output-ply outputs/live_sessions/phone_test/mapping/rebuilt_colored_map.ply `
       --downsample-factor 4
 
 再接 online replay：
 
-    conda run -n lingbot-map python Integrated_version/experiments/run_lingbot_online_replay.py \
-      --archive outputs/live_sessions/phone_test/mapping/predictions.npz \
-      --output-dir outputs/live_sessions/phone_test/online_replay \
-      --write-every 5 \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/run_lingbot_online_replay.py `
+      --archive outputs/live_sessions/phone_test/mapping/predictions.npz `
+      --output-dir outputs/live_sessions/phone_test/online_replay `
+      --write-every 5 `
       --sample-stride 8
 
 產生 3D 俯視 viewer：
 
-    conda run -n lingbot-map python Integrated_version/experiments/export_online_replay_3d_viewer.py \
-      --replay-dir outputs/live_sessions/phone_test/online_replay \
+    conda run --no-capture-output -n lingbot-map python Integrated_version/experiments/export_online_replay_3d_viewer.py `
+      --replay-dir outputs/live_sessions/phone_test/online_replay `
       --max-points-per-frame 18000
 
 ## 實驗注意

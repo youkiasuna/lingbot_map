@@ -6,7 +6,7 @@ RTSP -> persistent LingBot-MAP -> local points -> voxel fusion -> live_map outpu
 
 Run continuously:
 
-    PYTHONPATH=Integrated_version python Integrated_version/runtime/live_pointcloud_runtime.py \
+    python Integrated_version/runtime/live_pointcloud_runtime.py \
       --url rtsp://PHONE_IP:8554/live \
       --model-path models/lingbot-map.pt \
       --lingbot-root lingbot-map-main \

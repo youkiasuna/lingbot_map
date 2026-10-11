@@ -11,8 +11,6 @@ replaced by a stateful streaming model without changing the camera side.
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import signal
 import subprocess
 import sys
@@ -22,20 +20,19 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-from demo_storage import TEMP_ROOT, finish_session, new_session
 
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.storage.demo_storage import TEMP_ROOT, finish_session, new_session
+from Integrated_version.shared.json_io import atomic_write_json
+
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_SESSION_ROOT = TEMP_ROOT
 DEFAULT_MODEL = ROOT / "models/lingbot-map.pt"
-
-
-def atomic_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    os.replace(temporary, path)
 
 
 def count_frames(frames_dir: Path) -> int:
@@ -117,7 +114,7 @@ class LivePipeline:
         with self.state_lock:
             self.status.update(values)
             snapshot = dict(self.status)
-        atomic_json(self.status_path, snapshot)
+        atomic_write_json(self.status_path, snapshot)
 
     def log(self, message: str) -> None:
         line = f"[{datetime.now().isoformat(timespec='seconds')}] {message}"
@@ -151,7 +148,7 @@ class LivePipeline:
             "requested_fps": self.args.fps,
             "frames": [],
         }
-        atomic_json(self.session_dir / "capture_manifest.json", manifest)
+        atomic_write_json(self.session_dir / "capture_manifest.json", manifest)
         for _ in range(self.args.warmup_frames):
             cap.read()
         period = 1.0 / self.args.fps
@@ -175,7 +172,7 @@ class LivePipeline:
                 manifest["frames"].append({"index": saved, "file": str(path.relative_to(self.session_dir)), "timestamp_unix": time.time()})
                 saved += 1
                 self.update_status(frames_captured=saved)
-                atomic_json(self.session_dir / "capture_manifest.json", manifest)
+                atomic_write_json(self.session_dir / "capture_manifest.json", manifest)
                 self.frame_event.set()
                 next_save += period
                 if now - next_save > period:
@@ -192,7 +189,7 @@ class LivePipeline:
             manifest["ended_at_unix"] = time.time()
             manifest["saved_frames"] = saved
             manifest["read_frames"] = read_count
-            atomic_json(self.session_dir / "capture_manifest.json", manifest)
+            atomic_write_json(self.session_dir / "capture_manifest.json", manifest)
             self.frame_event.set()
 
     def run_command(self, command: list[str], label: str) -> None:

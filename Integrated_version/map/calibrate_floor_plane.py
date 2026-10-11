@@ -17,7 +17,14 @@ import math
 import random
 import re
 import struct
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.map.geometry import cross, normalize
 
 ROW = struct.Struct("<fffBBBf")
 
@@ -44,21 +51,6 @@ def read_ply(path: Path, max_points: int | None) -> tuple[list[tuple[float, floa
             points.append(ROW.unpack(raw))
     fit_points = points[::stride]
     return points, fit_points, stride
-
-
-def cross(a: tuple[float, float, float], b: tuple[float, float, float]) -> tuple[float, float, float]:
-    return (
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    )
-
-
-def normalize(vector: tuple[float, float, float]) -> tuple[float, float, float]:
-    length = math.sqrt(sum(value * value for value in vector))
-    if length < 1e-9:
-        raise ValueError("Cannot normalize a zero-length vector.")
-    return tuple(value / length for value in vector)
 
 
 def plane_from_points(a, b, c) -> tuple[float, float, float, float] | None:

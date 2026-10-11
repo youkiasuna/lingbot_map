@@ -5,23 +5,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 import cv2
-from demo_storage import TEMP_ROOT, finish_session, new_session
 
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.storage.demo_storage import TEMP_ROOT, finish_session, new_session
+from Integrated_version.shared.json_io import atomic_write_json
+
+
 DEFAULT_SESSION_ROOT = TEMP_ROOT
-
-
-def make_session_dir(root: Path, name: str | None) -> Path:
-    if name:
-        return root / name
-    stamp = datetime.now().strftime("session_%Y%m%d_%H%M%S")
-    return root / stamp
 
 
 def rotate_frame(frame, mode: str):
@@ -89,10 +88,7 @@ def main() -> int:
         "started_at_unix": time.time(),
         "frames": [],
     }
-    (session_dir / "capture_manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_json(session_dir / "capture_manifest.json", manifest, indent=2, ensure_ascii=False)
 
     print(f"Capturing from {args.url}")
     print(f"Session: {session_dir}")
@@ -156,10 +152,7 @@ def main() -> int:
         manifest["read_frames"] = read_count
         manifest["elapsed_sec"] = round(elapsed, 3)
         manifest["actual_saved_fps"] = round(saved / elapsed, 3) if elapsed > 0 else 0.0
-        (session_dir / "capture_manifest.json").write_text(
-            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_json(session_dir / "capture_manifest.json", manifest, indent=2, ensure_ascii=False)
         print(f"Wrote {session_dir / 'capture_manifest.json'}")
         print(f"Saved {saved} frames at {manifest['actual_saved_fps']} fps")
         finish_session(session_dir, ROOT / "outputs/live_sessions", args.session_root.resolve())

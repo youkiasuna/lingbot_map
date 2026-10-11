@@ -13,19 +13,22 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
 import trimesh
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.map.pgm_io import write_pgm
+
 
 FREE = 254
 UNKNOWN = 205
 OCCUPIED = 0
-
-
-def write_pgm(path: Path, width: int, height: int, pixels: bytes) -> None:
-    path.write_bytes(f"P5\n{width} {height}\n255\n".encode("ascii") + pixels)
 
 
 def axis_info(vertical_axis: str) -> tuple[int, float, np.ndarray, list[int]]:

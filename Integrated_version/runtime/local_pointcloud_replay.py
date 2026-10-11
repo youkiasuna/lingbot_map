@@ -22,13 +22,13 @@ class PredictionPointCloudReplay:
 
     def __init__(self, package_path: str | Path, *, max_points_per_window: int = 100_000) -> None:
         self.package_path = Path(package_path)
-        data = np.load(self.package_path, allow_pickle=True)
         required = {"world_points", "frame_paths"}
-        missing = required.difference(data.files)
-        if missing:
-            raise ValueError(f"mapping package missing fields: {sorted(missing)}")
-        self.world_points = data["world_points"]
-        self.frame_paths = [str(item) for item in data["frame_paths"].tolist()]
+        with np.load(self.package_path, allow_pickle=True) as data:
+            missing = required.difference(data.files)
+            if missing:
+                raise ValueError(f"mapping package missing fields: {sorted(missing)}")
+            self.world_points = data["world_points"]
+            self.frame_paths = [str(item) for item in data["frame_paths"].tolist()]
         self.max_points_per_window = max_points_per_window
         if len(self.frame_paths) != len(self.world_points):
             raise ValueError("frame_paths and world_points must have equal length")

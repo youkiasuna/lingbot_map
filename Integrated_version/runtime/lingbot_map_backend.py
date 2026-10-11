@@ -10,8 +10,8 @@ import time
 from typing import Iterator
 import numpy as np
 
-from runtime.local_pointcloud_backend import LocalPointCloudResult
-from runtime.lingbot_map_session import LingBotMapSession, LingBotMapSessionConfig
+from Integrated_version.runtime.local_pointcloud_backend import LocalPointCloudResult
+from Integrated_version.runtime.lingbot_map_session import LingBotMapSession, LingBotMapSessionConfig
 
 
 @dataclass(frozen=True)

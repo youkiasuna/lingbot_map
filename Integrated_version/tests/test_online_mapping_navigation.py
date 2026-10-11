@@ -2,7 +2,7 @@ from __future__ import annotations
 import time
 import unittest
 
-from runtime.frame_queue import FramePacket, LatestFrameQueue
+from Integrated_version.runtime.frame_queue import FramePacket, LatestFrameQueue
 
 class LatestFrameQueueTests(unittest.TestCase):
     def test_queue_keeps_latest_and_counts_drops(self) -> None:

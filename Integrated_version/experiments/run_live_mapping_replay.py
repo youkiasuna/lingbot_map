@@ -2,15 +2,59 @@
 """Replay an existing mapping package as an incremental local-map update."""
 from __future__ import annotations
 import argparse
+import ctypes
 import json
+import os
+import sys
 from pathlib import Path
-import resource
 import statistics
 import time
 
-from runtime.incremental_map_fusion import IncrementalVoxelMap
-from runtime.live_map_manager import LiveMapManager
-from runtime.local_pointcloud_backend import PredictionNpzBackend
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.runtime.incremental_map_fusion import IncrementalVoxelMap
+from Integrated_version.runtime.live_map_manager import LiveMapManager
+from Integrated_version.runtime.local_pointcloud_backend import LocalPointCloudBackend, PredictionNpzBackend
+
+
+def peak_rss_mb() -> float:
+    if os.name == "nt":
+        from ctypes import wintypes
+
+        class ProcessMemoryCounters(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+                ("PrivateUsage", ctypes.c_size_t),
+            ]
+
+        counters = ProcessMemoryCounters()
+        counters.cb = ctypes.sizeof(counters)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        process = kernel32.GetCurrentProcess()
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        get_memory_info = psapi.GetProcessMemoryInfo
+        get_memory_info.argtypes = (wintypes.HANDLE, ctypes.POINTER(ProcessMemoryCounters), wintypes.DWORD)
+        get_memory_info.restype = wintypes.BOOL
+        if not get_memory_info(process, ctypes.byref(counters), counters.cb):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return round(counters.PeakWorkingSetSize / (1024.0 * 1024.0), 3)
+
+    import resource
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    divisor = 1024.0 * 1024.0 if sys.platform == "darwin" else 1024.0
+    return round(peak / divisor, 3)
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,12 +84,13 @@ def main() -> int:
     args = parse_args()
     if args.resource_sample_every <= 0:
         raise SystemExit("--resource-sample-every must be positive")
+    backend: LocalPointCloudBackend
     if args.backend == "prediction":
         if args.mapping_package is None:
             raise SystemExit("--mapping-package is required for --backend prediction")
         backend = PredictionNpzBackend(args.mapping_package, max_points_per_window=args.max_points_per_window)
     else:
-        from runtime.lingbot_map_backend import LingBotMapBackend, LingBotMapBackendConfig
+        from Integrated_version.runtime.lingbot_map_backend import LingBotMapBackend, LingBotMapBackendConfig
         if args.source_dir is None or args.model_path is None:
             raise SystemExit("--source-dir and --model-path are required for --backend lingbot")
         backend = LingBotMapBackend(LingBotMapBackendConfig(
@@ -67,9 +112,6 @@ def main() -> int:
 
     def output_bytes() -> int:
         return sum(path.stat().st_size for path in args.output_dir.rglob("*") if path.is_file()) if args.output_dir.exists() else 0
-
-    def rss_mb() -> float:
-        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 3)
 
     for local_result in backend.iter_generate(
         window_size=args.window_size,
@@ -103,7 +145,7 @@ def main() -> int:
         }
         latency_samples.append(record["latency_ms"])
         if result.map_version % args.resource_sample_every == 0:
-            record.update({"rss_mb": rss_mb(), "output_bytes": output_bytes(), "voxel_count": result.fused_points})
+            record.update({"rss_mb": peak_rss_mb(), "output_bytes": output_bytes(), "voxel_count": result.fused_points})
         records.append(record)
         print(json.dumps(record), flush=True)
 
@@ -120,7 +162,7 @@ def main() -> int:
         "latency_mean_ms": round(statistics.fmean(latency_samples), 3) if latency_samples else None,
         "latency_p50_ms": round(statistics.median(latency_samples), 3) if latency_samples else None,
         "latency_p95_ms": round(sorted(latency_samples)[max(0, int(len(latency_samples) * 0.95) - 1)], 3) if latency_samples else None,
-        "peak_rss_mb": rss_mb(),
+        "peak_rss_mb": peak_rss_mb(),
         "final_output_bytes": output_bytes(),
         "final_voxel_count": int(fusion.points_xyz.shape[0]),
         "records": records,

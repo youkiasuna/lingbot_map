@@ -11,9 +11,15 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import re
 import struct
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.map.pgm_io import write_pgm
 
 ROW = struct.Struct("<fffBBBf")
 FREE = 254
@@ -54,10 +60,6 @@ def write_ply(path: Path, points: list[tuple[float, float, float, int, int, int,
         handle.write(header.encode("ascii"))
         for point in points:
             handle.write(ROW.pack(*point))
-
-
-def write_pgm(path: Path, width: int, height: int, pixels: bytes) -> None:
-    path.write_bytes(f"P5\n{width} {height}\n255\n".encode("ascii") + pixels)
 
 
 def dilate(mask: list[bool], width: int, height: int, radius: int) -> list[bool]:

@@ -27,8 +27,8 @@
 
 ## 1.1 原始碼與資料證據
 
-- [orb_keyframe_localizer.py](Integrated_version/experiments/orb_keyframe_localizer.py)：`pose_from_pnp`、`result_to_pose`、`read_image`、`OrbKeyframeLocalizer.localize`。
-- [run_lingbot_mapping.py](Integrated_version/experiments/run_lingbot_mapping.py)：`run`、`write_prediction_archive`。
+- [orb_keyframe_localizer.py](Integrated_version/localization/orb_keyframe_localizer.py)：`pose_from_pnp`、`result_to_pose`、`read_image`、`OrbKeyframeLocalizer.localize`。
+- [run_lingbot_mapping.py](Integrated_version/experiments/run_lingbot_mapping.py)：`run`；archive schema/writer 位於 [lingbot_map_integration.py](Integrated_version/runtime/lingbot_map_integration.py)。
 - [demo.py](lingbot-map-main/demo.py)：`postprocess` 將解碼的 w2c 反矩陣轉為 c2w；`_get_world_points` 使用點預測或 depth 反投影。
 - [localize_query_in_3d_viewer.py](Integrated_version/experiments/localize_query_in_3d_viewer.py)：`camera.up.set(0,-1,0)`，query forward=`(sin(yaw),0,cos(yaw))`。
 - [build_rebuilt_navigation_map.py](Integrated_version/map/build_rebuilt_navigation_map.py)：`axis_indices`、高度與 X/Z grid 投影。
@@ -308,7 +308,7 @@ Latencies沿用localize()內部timer：包含query讀取/resize/ORB/matching/ref
 
 # 7. Camera Calibration / Preprocessing Readiness
 
-現況：query經cv2.imread直接resize到518×294；mapping前處理用PIL、EXIF orientation、patch-size對齊及必要center crop。PnP使用各reference預測K且distortion=None。`visual_navigation/config/camera.json`為UNSET；第一個reference K約fx=480.747、fy=480.392、cx=259、cy=147，**這不是新手機的校正值**。
+現況：query經cv2.imread直接resize到518×294；mapping前處理用PIL、EXIF orientation、patch-size對齊及必要center crop。PnP使用各reference預測K且distortion=None。`Integrated_version/configs/camera.json`為UNSET；第一個reference K約fx=480.747、fy=480.392、cx=259、cy=147，**這不是新手機的校正值**。
 
 ## A. 第一輪一定要做
 

@@ -9,19 +9,25 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 import time
 from typing import Any
 
 import cv2
 
-from hardware.esp32_adapter import Esp32Adapter, Esp32Config
-from localization.pose_gate import PoseGate, PoseGateConfig
-from planner.pure_pursuit import PurePursuit, PurePursuitConfig, TwistCommand
-from planner.grid_navigation import plan_path
-from experiments.orb_keyframe_localizer import OrbRelocalizer
-from runtime.navigation_manager import NavigationManager
-from runtime.live_map_manager import LiveMapManager
-from runtime.live_viewer_state import LiveViewerState
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.hardware.esp32_adapter import Esp32Adapter, Esp32Config
+from Integrated_version.localization.pose_gate import PoseGate, PoseGateConfig
+from Integrated_version.planner.pure_pursuit import PurePursuit, PurePursuitConfig, TwistCommand
+from Integrated_version.planner.grid_navigation import plan_path
+from Integrated_version.localization.orb_keyframe_localizer import OrbRelocalizer
+from Integrated_version.runtime.navigation_manager import NavigationManager
+from Integrated_version.runtime.live_map_manager import LiveMapManager
+from Integrated_version.runtime.live_viewer_state import LiveViewerState
+from Integrated_version.runtime.video_source import camera_source
 
 
 def load_waypoints(path: Path) -> list[tuple[float, float]]:
@@ -61,10 +67,6 @@ def parse_args() -> argparse.Namespace:
         help="Append dry-run velocity commands to this JSONL file",
     )
     return parser.parse_args()
-
-
-def camera_source(value: str) -> int | str:
-    return int(value) if value.isdigit() else value
 
 
 def reconstruction_xyz_to_navigation_xy(position_xyz: list[float]) -> tuple[float, float]:

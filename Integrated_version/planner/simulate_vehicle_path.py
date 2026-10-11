@@ -9,11 +9,17 @@ import math
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT / "planner") not in sys.path:
-    sys.path.insert(0, str(ROOT / "planner"))
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from grid_navigation import GridMap, astar_pixels, load_grid_map, load_obstacle_distance, simplify_path
+from Integrated_version.planner.grid_navigation import (
+    GridMap,
+    astar_pixels,
+    load_grid_map,
+    load_obstacle_distance,
+    simplify_path,
+)
 
 
 def choose_endpoints(grid: GridMap) -> tuple[tuple[int, int], tuple[int, int]]:

@@ -37,9 +37,9 @@
 
 | Claim | Status | Code Evidence | Output/Data Evidence | Verified Value | Notes |
 |---|---|---|---|---|---|
-| 1. LingBot-MAP integration 已執行並產生重建 | VERIFIED | `E/run_lingbot_mapping.py`: `run`, `write_prediction_archive`; `lingbot-map-main/demo.py`: `postprocess`, `_get_world_points` | `S/mapping/predictions.npz`, `run.json`, `preprocessed/*.png`, `rebuilt_colored_map.ply` | 43 frames；PLY 1,446,504 vertices | 不代表重建幾何精度已驗證；舊 `videos/...` 路徑已失效，實體資料在 `data/frames/` |
+| 1. LingBot-MAP integration 已執行並產生重建 | VERIFIED | `E/run_lingbot_mapping.py`: `run`; `runtime/lingbot_map_integration.py`: `write_prediction_archive`; `lingbot-map-main/demo.py`: `postprocess`, `_get_world_points` | `S/mapping/predictions.npz`, `run.json`, `preprocessed/*.png`, `rebuilt_colored_map.ply` | 43 frames；PLY 1,446,504 vertices | 不代表重建幾何精度已驗證；舊 `videos/...` 路徑已失效，實體資料在 `data/frames/` |
 | 1a. -Y-up 是模型保證的世界重力方向 | INCORRECT / OVERSTATED | `E/run_research_pipeline.py` 預設 `--viewer-up-axis=-y`; `M/build_rebuilt_navigation_map.py`: `axis_indices`; viewer `camera.up.set(0,-1,0)` | `V/map.json`: `vertical_axis=-y`, `horizontal_axes=XZ` | 可確認目前後處理/展示採 -Y-up | archive 沒有施加重力校正；不能推論任何輸入都天然 -Y-up |
-| 2. ORB + Hamming + 2D–3D PnP/RANSAC baseline | VERIFIED | `E/orb_keyframe_localizer.py`: `OrbKeyframeLocalizer`, `lookup_2d_3d_correspondences`, `pose_from_pnp` | `S/results/orb/000000_result.json` 等 43 份 | pose、inlier、reprojection、confidence 均有輸出 | 成功執行不等於外部真值正確 |
+| 2. ORB + Hamming + 2D–3D PnP/RANSAC baseline | VERIFIED | `Integrated_version/localization/orb_keyframe_localizer.py`: `OrbKeyframeLocalizer`, `lookup_2d_3d_correspondences`, `pose_from_pnp` | `S/results/orb/000000_result.json` 等 43 份 | pose、inlier、reprojection、confidence 均有輸出 | 成功執行不等於外部真值正確 |
 | 3. 41/43、95.35% acceptance | VERIFIED | `E/analyze_external_queries.py`: `status_for_result`; localizer `result_to_pose` | 43 份 `S/results/orb/*_result.json` | 41 / 43 × 100 = 95.3488372093% | 與 summary 相符；稱「定位準確率」則為 OVERSTATED |
 | 4. ORB median 約 212 ms | VERIFIED | `OrbKeyframeLocalizer.localize` 中的 `perf_counter` 區段 | 同上，43 個 `latency_ms` | median 211.679 ms | 排除 reference 初始化、建圖、viewer、輸出寫檔；不是端到端 benchmark |
 | 5. Colored PLY virtual-view 定位已有成功案例 | VERIFIED，限 proof of concept | `E/colored_pointcloud_localizer.py`: `read_ply_sample`, `render_view`, `localize`; 共用 `pose_from_pnp` | `S/results/colored/000000_result.json` | localized；44 matches；31 inliers；40,332.162 ms | 只有一個通過案例；另有一個外部 query 失敗結果；不能視為完整 benchmark |
@@ -52,11 +52,11 @@
 | 11a. 已完成手機每幀即時推論與可導航更新 | INCORRECT / OVERSTATED | `process_once` 每次以 `--first-k N` 啟動新的 mapping 子程序 | log 的 30 → 60 → 90；最終 replay PGM | 最終 6×10，49 occupied、11 unknown、0 free | 模型內部 streaming API 不等於手機系統持續 online inference；無可導航 free cells |
 | 12. 外部 Ground Truth / accuracy / RMSE | NOT VERIFIED | 僅 example config 引用不存在的 `queries/ground_truth.jsonl`；上游誤差工具函式不構成真值資料 | 未找到配對實測 pose、tag、mocap、LiDAR 或手工量測標籤 | Ground Truth NOT AVAILABLE | 不能報 position/yaw accuracy、RMSE 或 true localization success rate |
 | 13. SuperPoint / LightGlue 已比較或完成 benchmark | NOT VERIFIED | 未找到專案實作/呼叫；指定 `lingbot-map` 環境套件 metadata 與 module lookup 均無命中 | 未找到相關 benchmark result | 無可核實的安裝/執行/比較成果 | 未掃描所有其他 conda 環境，不能推論整台電腦從未安裝 |
-| 14. ESP32 完整自主閉迴路 | NOT VERIFIED；宣称完成則 OVERSTATED | `car/car/{pc_controller.py,web_controller.py,esp32_motor_control.ino}` 是手動 TCP 控制；Demo 未串接馬達 | 未找到 localization→planning→motor→feedback 的一次完整執行紀錄 | firmware 接受 F/B/L/R/S；設定 motor_output_enabled=false | 車輪尺寸與相機外參未設定；ACK 不是運動回授；無實車自主導航證據 |
+| 14. ESP32 完整自主閉迴路 | NOT VERIFIED；宣称完成則 OVERSTATED | `Integrated_version/hardware/{pc_controller.py,web_controller.py,esp32_motor_control.ino}` 是手動 TCP 控制；Demo 未串接馬達 | 未找到 localization→planning→motor→feedback 的一次完整執行紀錄 | firmware 接受 F/B/L/R/S；設定 motor_output_enabled=false | 車輪尺寸與相機外參未設定；ACK 不是運動回授；無實車自主導航證據 |
 
 ## 2.1 ORB Pipeline 的精確實作
 
-來源：[orb_keyframe_localizer.py](Integrated_version/experiments/orb_keyframe_localizer.py)、[analyze_external_queries.py](Integrated_version/experiments/analyze_external_queries.py)。
+來源：[orb_keyframe_localizer.py](Integrated_version/localization/orb_keyframe_localizer.py)、[analyze_external_queries.py](Integrated_version/experiments/analyze_external_queries.py)。
 
 1. 初始化：從 `mapping/predictions.npz` 取得 `world_points` 與 `intrinsic`；從 `mapping/preprocessed/<index>.png` 建立 reference ORB features。`analyze_external_queries.py` 預設 `frame_stride=1`；43 份結果皆記錄 `reference_count=43`。注意 localizer class 自己的預設 stride 是 5，Web Demo 不一定使用此 43-reference 設定。
 2. Query：`cv2.imread`，直接 resize 到 world_points 的寬高，本場景是 518×294；BGR→gray；`cv2.ORB_create(nfeatures=2000).detectAndCompute`。
@@ -71,7 +71,7 @@
 
 ## 2.2 座標、Colored PLY 與 Viewer
 
-- `run_lingbot_mapping.py` 使用模型預測及上游 postprocess；`demo.postprocess` 將 pose encoding 解碼後的 w2c 反矩陣變成 c2w。`_get_world_points` 使用既有 world_points，或以 depth、K、c2w 反投影。archive 寫入沒有套用地板校正矩陣或重力旋轉。
+- `run_lingbot_mapping.py` 使用模型預測及上游 postprocess；`demo.postprocess` 將 pose encoding 解碼後的 w2c 反矩陣變成 c2w。`_get_world_points` 使用既有 world_points，或以 depth、K、c2w 反投影。archive 寫入由 `runtime/lingbot_map_integration.py` 共用，沒有套用地板校正矩陣或重力旋轉。
 - 因此「LingBot reconstruction coordinates」成立；「模型保證 -Y 為真實鉛直」不成立。`calibrate_floor_plane.py` 是另外的後處理，不能與 raw reconstruction 的座標混用。不同 outputs 也保留 y/z 等校正版本，不能聲稱所有檔案使用同一座標系。
 - Colored 方法讀取 binary colored PLY，stride sampling 後保留 144,651 點；virtual camera 使用 mapping archive 的每個 `extrinsic_c2w` 與 K，不是任意新視角搜尋網格。
 - `render_view` 以 `(points-center) @ rotation` 變換、投影到像素；剔除 depth≤0.05 與影像外點；按深度排序，以預設半徑 2 的 splat 填 RGB 與 point-id buffer。Rendered RGB 是由 PLY RGB 產生，之後共用 ORB extractor；其 extractor 用 BGR2GRAY，並未特別為 rendered RGB 轉換通道，這是目前實作細節，不應隱去。
@@ -258,7 +258,7 @@ Log anchors（`I/pipeline.log`，時間為檔案原文，不混用系統當下�
 1. **Ground Truth NOT AVAILABLE。** 設計文件中的真值路徑與上游 error 函式都不是實驗標籤；current_pose、simulated trajectory、LingBot 自己輸出的 camera poses 也不是外部真值。
 2. **In-sequence，不是 independent revisit。** Mapping IDs=50k，query IDs=25+50k，來源同一 extracted sequence；每張 query 距離最近 mapping frame 25 個來源 frame。若按現存原片約29.863 FPS、一對一抽幀解讀，约0.84秒；這個秒數依賴抽幀 provenance 假設，不作已獨立驗證的時間間隔數字。
 3. **資料洩漏與重疊風險。** 沒找到 mapping/query 相同來源檔或相同 SHA-256 的直接重複；因此不斷言 query 被直接拿去建圖。但同片相鄰時間影像可能高度重疊，測試不獨立。Overlap 百分比與移動距離沒有量測，不能補猜。調參過程是否反覆使用這43張，也缺少獨立紀錄，不能宣稱嚴格 held-out。
-4. **相機校正不足。** Query 用 reference 預測 K，distortion=None；`visual_navigation/config/camera.json` calibration_status=UNSET，fx/fy/cx/cy 與 camera_to_base 為 null。未證明不同手機、焦距、裁切、長寬比的 query 正確映射到此 K。
+4. **相機校正不足。** Query 用 reference 預測 K，distortion=None；`Integrated_version/configs/camera.json` calibration_status=UNSET，fx/fy/cx/cy 與 camera_to_base 為 null。未證明不同手機、焦距、裁切、長寬比的 query 正確映射到此 K。
 5. **Metric scale 未驗證。** 輸出 `_m`、resolution_m、robot_radius_m 都是程式命名/設定；沒有外部長度量測、scale alignment 或 scale error 資料可證明公尺精度。不得將點雲單位直接當成可驗證的真實距離。
 6. **Acceptance 不等於 accuracy。** Gate 是匹配/PnP幾何與 heuristic confidence；沒有與真值位置/角度容許誤差比較。95.35% 只能報 gate acceptance。
 7. **座標介面未完整校正。** ORB yaw 是 atan2(forward.x,forward.z)，Web 插值 yaw 是 atan2(delta_y,delta_x)，加上 offset/snap 與不同 map variants，不能因格式都有 yaw_deg/x_m 就聲稱物理座標一致。Snapped pose 不可當原始定位估計計算 accuracy。

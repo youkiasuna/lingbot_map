@@ -8,12 +8,12 @@
 
 這是 Level 2：incremental local mapping + visual navigation，不是完整 global SLAM，也不代表已完成真實 autonomous driving。
 
-## 新增模組
+## 主要實作
 
 - runtime/mapping_state_machine.py：管理 BOOT、探索、導航、定位遺失與復原狀態。
 - runtime/live_map_manager.py：管理 map version、品質、座標規則與原子 JSON 輸出。
 - runtime/live_viewer_state.py：發布 Viewer 所需的 pose、path、status。
-- tests/test_live_mapping_architecture.py：測試版本管理、失敗更新保護與狀態門檻。
+- `Integrated_version/tests/test_live_mapping_architecture.py`：測試版本管理、失敗更新保護與狀態門檻。
 
 既有 realtime_navigation.py 已接入 LiveMapManager 與 LiveViewerState；ORB、A*、Pure Pursuit 流程仍保留，且不會改寫正式研究輸出。
 
@@ -71,7 +71,7 @@ LiveMapManager 會在指定輸出資料夾產生：
 
 範例：
 
-    PYTHONPATH=Integrated_version python Integrated_version/runtime/realtime_navigation.py \\
+    python Integrated_version/runtime/realtime_navigation.py \\
       --mapping-dir outputs/scenes/scene_20260818/mapping \\
       --map-dir outputs/maps/20260818_navigation_rebuilt \\
       --goal-x 1.0 --goal-y 1.0 \\
@@ -93,7 +93,7 @@ LiveMapManager 會在指定輸出資料夾產生：
 
 執行：
 
-    PYTHONPATH=Integrated_version python -m unittest discover -s Integrated_version/tests -v
+    python -m unittest discover -s Integrated_version/tests -v
 
 或：
 

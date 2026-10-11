@@ -4,7 +4,7 @@ import tempfile
 import unittest
 import numpy as np
 
-from runtime.local_pointcloud_backend import PredictionNpzBackend
+from Integrated_version.runtime.local_pointcloud_backend import PredictionNpzBackend
 
 
 class LocalPointCloudBackendTests(unittest.TestCase):

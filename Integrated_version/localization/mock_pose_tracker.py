@@ -6,8 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 import time
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.shared.json_io import atomic_write_json
 
 
 def write_pose(path: Path, x_m: float, y_m: float, yaw_deg: float, source: str) -> None:
@@ -20,7 +27,7 @@ def write_pose(path: Path, x_m: float, y_m: float, yaw_deg: float, source: str) 
         "source": source,
         "confidence": 1.0,
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(path, payload, indent=2)
 
 
 def main() -> None:

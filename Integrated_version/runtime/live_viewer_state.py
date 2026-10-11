@@ -1,6 +1,6 @@
 """JSON publisher consumed by a live 3D viewer."""
 from __future__ import annotations
-from runtime.live_map_manager import LiveMapManager
+from Integrated_version.runtime.live_map_manager import LiveMapManager
 
 class LiveViewerState:
     """Publish pose, path, and status without reloading the complete point cloud."""

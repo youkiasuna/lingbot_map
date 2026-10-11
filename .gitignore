@@ -5,7 +5,6 @@
 
 # Legacy data paths: keep ignored even if an older script recreates them.
 /videos/
-/map_localization_test/outputs/
 /Integrated_version/experiments/scenes/
 /Integrated_version/experiments/archive/
 /Integrated_version/experiments/live_sessions/
@@ -27,7 +26,6 @@
 *.safetensors
 *.onnx
 *.ply
-!/map_localization_test/samples/room_ascii.ply
 *.mp4
 *.mov
 *.avi
@@ -61,3 +59,6 @@ htmlcov/
 .env.*
 !.env.example
 !.env.template
+
+# Local ESP32 credentials; copy the tracked example and fill in privately.
+/Integrated_version/hardware/esp32_secrets.h

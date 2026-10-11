@@ -13,9 +13,6 @@ from pathlib import Path
 
 DEFAULT_SCAN_ROOTS = (
     "Integrated_version",
-    "map_localization_test",
-    "car",
-    "visual_navigation",
     "lingbot-map-main",
     "data",
     "models",
@@ -57,7 +54,7 @@ def classify(path: Path) -> tuple[str, str, str]:
         if suffix == ".html":
             return "generated_viewer", "keep", "Retained overview or explicitly saved demo viewer."
         return "research_result", "keep", "Mapping package, metrics, or explicitly saved results."
-    if parts[:1] in (("Integrated_version",), ("car",), ("lingbot-map-main",), ("map_localization_test",), ("visual_navigation",)):
+    if parts[:1] in (("Integrated_version",), ("lingbot-map-main",)):
         return "code_config_docs", "keep", "Program source, tests, configuration, or documentation."
     return "other", "review", "No specific rule matched; review manually."
 

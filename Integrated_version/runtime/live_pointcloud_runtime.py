@@ -5,18 +5,25 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
+import tempfile
 import threading
 import time
 
-from runtime.frame_queue import FramePacket
-from runtime.incremental_map_fusion import IncrementalVoxelMap
-from runtime.lingbot_map_session import LingBotMapSession, LingBotMapSessionConfig
-from runtime.live_map_manager import LiveMapManager
-from runtime.streaming_mapping_worker import (
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.runtime.frame_queue import FramePacket
+from Integrated_version.runtime.incremental_map_fusion import IncrementalVoxelMap
+from Integrated_version.runtime.lingbot_map_session import LingBotMapSession, LingBotMapSessionConfig
+from Integrated_version.runtime.live_map_manager import LiveMapManager
+from Integrated_version.runtime.streaming_mapping_worker import (
     StreamingMappingWorker,
     StreamingMappingWorkerConfig,
 )
+from Integrated_version.runtime.video_source import camera_source
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,17 +45,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def camera_source(value: str) -> int | str:
-    return int(value) if value.isdigit() else value
-
-
 def write_live_frame(cv2, frame, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    temporary = output_dir / ".live_frame.jpg.tmp"
     destination = output_dir / "live_frame.jpg"
-    if not cv2.imwrite(str(temporary), frame):
-        raise OSError(f"failed to write {temporary}")
-    os.replace(temporary, destination)
+    fd, temporary_name = tempfile.mkstemp(prefix=".live_frame.", suffix=".jpg", dir=output_dir)
+    os.close(fd)
+    try:
+        if not cv2.imwrite(temporary_name, frame):
+            raise OSError(f"failed to write {temporary_name}")
+        os.replace(temporary_name, destination)
+    finally:
+        if os.path.exists(temporary_name):
+            os.unlink(temporary_name)
 
 
 def open_capture(cv2, source: int | str, timeout_ms: int):

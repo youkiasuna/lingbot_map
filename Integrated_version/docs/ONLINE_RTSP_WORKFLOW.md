@@ -11,7 +11,6 @@ RTSP -> bounded latest-frame queue -> ORB localization -> PoseGate -> Navigation
 ## 執行
 
 ```bash
-PYTHONPATH=Integrated_version \
 python Integrated_version/runtime/online_mapping_navigation.py \
   --mapping-dir outputs/scenes/scene_20260818/mapping \
   --url rtsp://CAMERA_IP:8554/live \

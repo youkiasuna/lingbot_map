@@ -16,12 +16,19 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
+import sys
 import time
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from Integrated_version.shared.image_io import read_bgr_image
+from Integrated_version.shared.json_io import atomic_write_json
 
 
 def require_open3d():
@@ -34,13 +41,6 @@ def require_open3d():
             "conda run -n lingbot-map python -m pip install open3d"
         ) from exc
     return o3d
-
-
-def atomic_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
-    os.replace(temporary, path)
 
 
 def read_metadata(archive: Path) -> dict:
@@ -76,7 +76,7 @@ def resize_intrinsic(intrinsic: np.ndarray, from_wh: tuple[int, int], to_wh: tup
 
 
 def load_color(path: Path, width: int, height: int) -> np.ndarray:
-    image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    image = read_bgr_image(path)
     if image is None:
         raise OSError(f"Cannot read color image: {path}")
     original_wh = (image.shape[1], image.shape[0])
@@ -215,7 +215,7 @@ def main() -> int:
     if args.preview_json is not None:
         payload = sampled_mesh_payload(mesh, integrated, args.update_index, args.max_preview_faces)
         payload["mesh_path"] = str(args.output_mesh.resolve())
-        atomic_json(args.preview_json.resolve(), payload)
+        atomic_write_json(args.preview_json.resolve(), payload)
     print(f"Wrote {args.output_mesh.resolve()}")
     print(f"Integrated frames: {integrated}")
     print(f"Mesh vertices/faces: {len(mesh.vertices)} / {len(mesh.triangles)}")

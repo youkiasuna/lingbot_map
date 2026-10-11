@@ -6,10 +6,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shutil
 from pathlib import Path
 
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
+LINK_MANIFEST = ".lingbot_split_links.json"
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -25,7 +28,12 @@ def scene_inputs(scene_dir: Path) -> Path:
     target = ROOT / "data/scenes" / scene_name / "inputs"
     target.mkdir(parents=True, exist_ok=True)
     scene_dir.mkdir(parents=True, exist_ok=True)
-    inputs.symlink_to(os.path.relpath(target, scene_dir), target_is_directory=True)
+    try:
+        inputs.symlink_to(os.path.relpath(target, scene_dir), target_is_directory=True)
+    except OSError as exc:
+        if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+            raise
+        inputs.mkdir(parents=True, exist_ok=True)
     return inputs
 
 
@@ -40,6 +48,21 @@ def list_images(source_dir: Path) -> list[Path]:
 
 def clear_existing_links(target_dir: Path) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
+    manifest = target_dir / LINK_MANIFEST
+    if manifest.is_file():
+        names = json.loads(manifest.read_text(encoding="utf-8"))
+        if not isinstance(names, list) or any(
+            not isinstance(name, str)
+            or Path(name).name != name
+            or re.fullmatch(r"\d{6}\.(?:jpg|jpeg|png)", name) is None
+            for name in names
+        ):
+            raise ValueError(f"Invalid generated-link manifest: {manifest}")
+        for name in names:
+            generated = target_dir / name
+            if generated.is_symlink() or generated.is_file():
+                generated.unlink()
+        manifest.unlink()
     for path in target_dir.iterdir():
         if path.is_symlink():
             path.unlink()
@@ -48,13 +71,24 @@ def clear_existing_links(target_dir: Path) -> None:
 def write_links(images: list[Path], target_dir: Path) -> list[dict[str, object]]:
     clear_existing_links(target_dir)
     records: list[dict[str, object]] = []
+    filenames = [f"{index:06d}{source.suffix.lower()}" for index, source in enumerate(images)]
+    (target_dir / LINK_MANIFEST).write_text(json.dumps(filenames) + "\n", encoding="utf-8")
     for output_index, source_path in enumerate(images):
-        link_path = target_dir / f"{output_index:06d}{source_path.suffix.lower()}"
+        link_path = target_dir / filenames[output_index]
         if link_path.exists() and not link_path.is_symlink():
             raise FileExistsError(f"Refusing to replace non-symlink file: {link_path}")
         if link_path.exists():
             link_path.unlink()
-        os.symlink(os.path.relpath(source_path.resolve(), link_path.parent.resolve()), link_path)
+        source = source_path.resolve()
+        try:
+            os.symlink(os.path.relpath(source, link_path.parent.resolve()), link_path)
+        except OSError as exc:
+            if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+                raise
+            try:
+                os.link(source, link_path)
+            except OSError:
+                shutil.copy2(source, link_path)
         records.append(
             {
                 "split_index": output_index,

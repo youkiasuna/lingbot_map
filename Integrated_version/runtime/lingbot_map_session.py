@@ -9,12 +9,10 @@ from pathlib import Path
 from types import SimpleNamespace
 import time
 from typing import Any
-import cv2
 import numpy as np
 import torch
 
-from experiments.run_lingbot_mapping import (
-    as_numpy,
+from Integrated_version.runtime.lingbot_map_integration import (
     export_preprocessed_images,
     load_lingbot_demo,
     write_prediction_archive,

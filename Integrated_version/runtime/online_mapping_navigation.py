@@ -4,10 +4,16 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 import threading
 import time
 
-from runtime.frame_queue import FramePacket, LatestFrameQueue
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.runtime.frame_queue import FramePacket, LatestFrameQueue
+from Integrated_version.runtime.video_source import camera_source
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,19 +41,15 @@ def load_waypoints(path: Path | None) -> list[tuple[float, float]]:
     return [(float(item[0]), float(item[1])) for item in raw]
 
 
-def camera_source(value: str) -> int | str:
-    return int(value) if value.isdigit() else value
-
-
 def main() -> int:
     import cv2
-    from experiments.orb_keyframe_localizer import OrbRelocalizer
-    from hardware.esp32_adapter import Esp32Adapter, Esp32Config
-    from localization.pose_gate import PoseGate, PoseGateConfig
-    from planner.pure_pursuit import PurePursuit
-    from runtime.live_map_manager import LiveMapManager
-    from runtime.live_viewer_state import LiveViewerState
-    from runtime.navigation_manager import NavigationManager
+    from Integrated_version.localization.orb_keyframe_localizer import OrbRelocalizer
+    from Integrated_version.hardware.esp32_adapter import Esp32Adapter, Esp32Config
+    from Integrated_version.localization.pose_gate import PoseGate, PoseGateConfig
+    from Integrated_version.planner.pure_pursuit import PurePursuit
+    from Integrated_version.runtime.live_map_manager import LiveMapManager
+    from Integrated_version.runtime.live_viewer_state import LiveViewerState
+    from Integrated_version.runtime.navigation_manager import NavigationManager
     args = parse_args()
     if args.queue_size <= 0 or args.max_frames < 0:
         raise SystemExit("queue-size must be positive and max-frames cannot be negative")

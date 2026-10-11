@@ -10,7 +10,7 @@ from typing import Iterator, Protocol
 import time
 import numpy as np
 
-from runtime.local_pointcloud_replay import PredictionPointCloudReplay, LocalWindow
+from Integrated_version.runtime.local_pointcloud_replay import PredictionPointCloudReplay, LocalWindow
 
 
 @dataclass(frozen=True)

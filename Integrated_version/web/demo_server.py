@@ -9,35 +9,17 @@ from urllib.parse import parse_qs, urlparse, urlsplit
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
-INTEGRATED = ROOT / "Integrated_version"
-sys.path.insert(0, str(INTEGRATED))
-sys.path.insert(0, str(INTEGRATED / "planner"))
-from experiments.orb_keyframe_localizer import OrbKeyframeLocalizer, result_to_pose
-from localization.localizer_interface import FilePosePublisher, PoseSample
-from planner.grid_navigation import load_grid_map, plan_path
-from experiments.demo_storage import new_session, save_session, discard_session
-
-ROBOT_COMMAND_MAP = {
-    "forward": "F",
-    "backward": "B",
-    "left": "L",
-    "right": "R",
-    "stop": "S",
-}
-
-
-def send_robot_command(ip: str, port: int, command: str) -> str:
-    """Send a single-letter motion command to the ESP32 car over TCP.
-
-    Mirrors car/car/pc_controller.py and car/car/web_controller.py so the
-    same firmware protocol (newline-terminated single letter) is reused
-    instead of inventing a new one.
-    """
-    payload = command.encode("utf-8") + b"\n"
-    with socket.create_connection((ip, port), timeout=2) as sock:
-        sock.sendall(payload)
-        return sock.recv(1024).decode("utf-8", errors="ignore").strip()
-
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from Integrated_version.localization.orb_keyframe_localizer import OrbKeyframeLocalizer, result_to_pose
+from Integrated_version.storage.demo_storage import new_session, save_session, discard_session
+from Integrated_version.hardware.esp32_protocol import COMMAND_MAP as ROBOT_COMMAND_MAP
+from Integrated_version.hardware.esp32_protocol import send_command as send_robot_command
+from Integrated_version.localization.localizer_interface import FilePosePublisher, PoseSample
+from Integrated_version.planner.grid_navigation import load_grid_map, plan_path
+from Integrated_version.shared.json_io import atomic_write_json
+from Integrated_version.web.http_responses import send_bytes as write_bytes_response
+from Integrated_version.web.http_responses import send_json as write_json_response
 
 class DemoHandler(BaseHTTPRequestHandler):
     map_dir: Path
@@ -69,25 +51,14 @@ class DemoHandler(BaseHTTPRequestHandler):
         print("%s - %s" % (self.address_string(), fmt % args))
 
     def send_json(self, payload, status=HTTPStatus.OK):
-        data = json.dumps(payload, ensure_ascii=False, indent=2).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(data)
+        write_json_response(self, payload, status)
 
     def send_file(self, path, content_type):
         if not path.is_file():
             self.send_json({"status": "error", "message": "File not found: " + str(path)}, HTTPStatus.NOT_FOUND)
             return
         data = path.read_bytes()
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(data)
+        write_bytes_response(self, data, content_type)
 
     def read_body(self):
         length = int(self.headers.get("Content-Length", "0"))
@@ -371,7 +342,7 @@ class DemoHandler(BaseHTTPRequestHandler):
 
         This does not touch localization, planning, or navigation state —
         it is the same "send one letter, get one letter back" contract
-        car/car/pc_controller.py already uses, just reachable from the
+        Integrated_version/hardware/pc_controller.py already uses, just reachable from the
         browser through this server instead of a standalone script.
         """
         direction = str(body.get("command", ""))
@@ -425,7 +396,7 @@ class DemoHandler(BaseHTTPRequestHandler):
         result = self.localizer.localize(query)
         self.result_dir.mkdir(parents=True, exist_ok=True)
         output = self.result_dir / (query.stem + "_demo_result.json")
-        output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+        atomic_write_json(output, result, indent=2, ensure_ascii=False)
         pose = result_to_pose(result, self.min_confidence)
         pose = PoseSample(pose.x_m + self.pose_offset_x, pose.y_m + self.pose_offset_y, pose.yaw_deg, pose.timestamp_unix, pose.source, pose.confidence, pose.status, pose.inlier_count, pose.reprojection_error_px, pose.frame_id)
         if self.snap_localization_to_free and pose.status == "ok":
@@ -458,7 +429,7 @@ class DemoHandler(BaseHTTPRequestHandler):
             raise ValueError("Localization has not passed the confidence gate.")
         result = plan_path(self.map_dir, float(pose["x_m"]), float(pose["y_m"]),
                            goal_x, goal_y, False, True, 0.25, 1.0)
-        (self.map_dir / "planned_path.json").write_text(json.dumps(result, indent=2) + "\n")
+        atomic_write_json(self.map_dir / "planned_path.json", result, indent=2)
         navigation_path = self.map_dir / "navigation_state.json"
         if navigation_path.exists():
             navigation_path.unlink()
@@ -497,12 +468,12 @@ class DemoHandler(BaseHTTPRequestHandler):
                 yaw = math.degrees(math.atan2(y1 - y0, x1 - x0)) % 360
                 sample = PoseSample(x, y, yaw, time.time(), "demo_simulator", 1.0)
                 FilePosePublisher(pose_path).publish(sample)
-        (self.map_dir / "navigation_state.json").write_text(json.dumps({"state": "ARRIVED", "updated_at_unix": time.time()}, indent=2) + "\n")
+        atomic_write_json(self.map_dir / "navigation_state.json", {"state": "ARRIVED", "updated_at_unix": time.time()}, indent=2)
         self.set_state(system_state="ARRIVED")
 
     def handle_stop(self):
         self.stop_event.set()
-        (self.map_dir / "navigation_state.json").write_text(json.dumps({"state": "STOP", "updated_at_unix": time.time(), "reason": "user_requested"}, indent=2) + "\n")
+        atomic_write_json(self.map_dir / "navigation_state.json", {"state": "STOP", "updated_at_unix": time.time(), "reason": "user_requested"}, indent=2)
         self.set_state(system_state="STOPPED")
         self.send_json({"status": "ok", "navigation": {"state": "STOP"}})
 
@@ -528,7 +499,7 @@ def main():
     parser.add_argument("--pose-offset-x", type=float, default=-1.53, help="Demo translation from LingBot X/Z to navigation-map X/Y.")
     parser.add_argument("--pose-offset-y", type=float, default=0.0, help="Demo translation from LingBot X/Z to navigation-map X/Y.")
     parser.add_argument("--snap-localization-to-free", action="store_true", help="Simulation only: snap localized pose to nearest traversable map cell.")
-    parser.add_argument("--robot-ip", default="192.168.4.1", help="ESP32 car IP address for manual driving (car/car/esp32_motor_control.ino).")
+    parser.add_argument("--robot-ip", default="192.168.4.1", help="ESP32 car IP address for manual driving (Integrated_version/hardware/esp32_motor_control.ino).")
     parser.add_argument("--robot-port", type=int, default=8888, help="ESP32 car TCP port for manual driving commands.")
     args = parser.parse_args()
     DemoHandler.source_map_dir, DemoHandler.scene_dir = args.map_dir.resolve(), args.scene_dir.resolve()

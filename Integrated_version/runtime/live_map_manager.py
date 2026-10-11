@@ -2,13 +2,13 @@
 from __future__ import annotations
 from dataclasses import asdict, dataclass
 import json
-import os
 from pathlib import Path
-import tempfile
 import time
 from typing import Iterable, Sequence
 
 import numpy as np
+from Integrated_version.shared.npz_io import atomic_write_npz
+from Integrated_version.shared.json_io import atomic_write_json
 
 @dataclass(frozen=True)
 class CoordinateConvention:
@@ -36,10 +36,6 @@ class LiveMapManager:
         self.map_version = self._read_version()
         self._status: dict = {}
 
-    @property
-    def map_ready(self) -> bool:
-        return bool(self._status.get("map_ready", False))
-
     def publish_map_update(self, points_xyz: Iterable[Sequence[float]], *, frame_count: int, keyframe_count: int, tracked_ratio: float, navigable: bool) -> bool:
         points = [[float(v) for v in point[:3]] for point in points_xyz]
         if any(len(point) != 3 for point in points):
@@ -50,24 +46,28 @@ class LiveMapManager:
             step = max(1, len(points) // self.max_points)
             points = points[::step][:self.max_points]
         quality = MapQuality(int(frame_count), int(keyframe_count), len(points), float(tracked_ratio), bool(navigable))
-        self.map_version += 1
+        next_version = self.map_version + 1
         points_array = np.asarray(points, dtype=np.float32)
-        self._write_npz("live_points.npz", map_version=self.map_version, points_xyz=points_array)
+        atomic_write_npz(
+            self.output_dir / "live_points.npz",
+            {"map_version": next_version, "points_xyz": points_array},
+        )
         if self.publish_json_points:
-            self._write_json("live_points.json", {"map_version": self.map_version, "points_xyz": points})
-        self._write_json("live_map.json", {
+            atomic_write_json(self.output_dir / "live_points.json", {"map_version": next_version, "points_xyz": points}, indent=2, ensure_ascii=False)
+        atomic_write_json(self.output_dir / "live_map.json", {
             "schema_version": 1,
-            "map_version": self.map_version,
+            "map_version": next_version,
             "updated_at_unix": time.time(),
             "coordinate_convention": asdict(self.convention),
             "quality": asdict(quality),
-        })
-        self._status.update({"map_ready": True, "map_version": self.map_version, "pointcloud_file": "live_points.json" if self.publish_json_points else "live_points.npz"})
+        }, indent=2, ensure_ascii=False)
+        self.map_version = next_version
+        self._status.update({"map_version": self.map_version, "pointcloud_file": "live_points.json" if self.publish_json_points else "live_points.npz"})
         self.publish_status()
         return True
 
     def publish_pose(self, position_xyz: Sequence[float] | None, yaw_deg: float | None, *, confidence: float, status: str, timestamp_unix: float | None = None) -> None:
-        self._write_json("live_pose.json", {
+        atomic_write_json(self.output_dir / "live_pose.json", {
             "schema_version": 1,
             "timestamp_unix": time.time() if timestamp_unix is None else float(timestamp_unix),
             "position_xyz": None if position_xyz is None else [float(v) for v in position_xyz],
@@ -76,24 +76,24 @@ class LiveMapManager:
             "status": str(status),
             "map_version": self.map_version,
             "coordinate_convention": asdict(self.convention),
-        })
+        }, indent=2, ensure_ascii=False)
 
     def publish_path(self, waypoints_xz: Iterable[Sequence[float]]) -> None:
-        self._write_json("live_path.json", {
+        atomic_write_json(self.output_dir / "live_path.json", {
             "schema_version": 1,
             "map_version": self.map_version,
             "waypoints_xz": [[float(v) for v in point[:2]] for point in waypoints_xz],
-        })
+        }, indent=2, ensure_ascii=False)
 
     def publish_status(self, **fields: object) -> None:
         self._status.update(fields)
-        self._write_json("live_status.json", {
+        atomic_write_json(self.output_dir / "live_status.json", {
             "schema_version": 1,
             "timestamp_unix": time.time(),
             "map_version": self.map_version,
             "coordinate_convention": asdict(self.convention),
             **self._status,
-        })
+        }, indent=2, ensure_ascii=False)
 
     def _read_version(self) -> int:
         path = self.output_dir / "live_map.json"
@@ -103,30 +103,3 @@ class LiveMapManager:
             return int(json.loads(path.read_text(encoding="utf-8")).get("map_version", 0))
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             return 0
-
-    def _write_npz(self, filename: str, **arrays: object) -> None:
-        destination = self.output_dir / filename
-        fd, temporary_name = tempfile.mkstemp(prefix=f".{filename}.", suffix=".npz", dir=self.output_dir)
-        try:
-            with os.fdopen(fd, "wb") as handle:
-                np.savez_compressed(handle, **arrays)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary_name, destination)
-        finally:
-            if os.path.exists(temporary_name):
-                os.unlink(temporary_name)
-
-    def _write_json(self, filename: str, payload: dict) -> None:
-        destination = self.output_dir / filename
-        fd, temporary_name = tempfile.mkstemp(prefix=f".{filename}.", dir=self.output_dir)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-                handle.write("\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary_name, destination)
-        finally:
-            if os.path.exists(temporary_name):
-                os.unlink(temporary_name)

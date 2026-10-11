@@ -7,14 +7,13 @@ import json
 from pathlib import Path
 import time
 
-from planner.pure_pursuit import TwistCommand
+from Integrated_version.planner.pure_pursuit import TwistCommand
 
 
 @dataclass(frozen=True)
 class Esp32Config:
     host: str = "dry-run-only"
     port: int = 8888
-    command_timeout_s: float = 0.4
     dry_run: bool = True
     command_log_path: Path | None = None
 
@@ -26,7 +25,6 @@ class Esp32Adapter:
         if not config.dry_run:
             raise ValueError("ESP32 hardware output is disabled; use dry_run=True for this prototype.")
         self.config = config
-        self._last_send = 0.0
 
     def send(self, command: TwistCommand) -> bool:
         payload = {
@@ -38,7 +36,6 @@ class Esp32Adapter:
             "timestamp_unix": time.time(),
         }
         self._emit(payload)
-        self._last_send = time.time()
         return True
 
     def stop(self) -> None:
@@ -51,13 +48,6 @@ class Esp32Adapter:
             "timestamp_unix": time.time(),
         }
         self._emit(payload)
-        self._last_send = time.time()
-
-    def watchdog_expired(self) -> bool:
-        return (
-            self._last_send > 0.0
-            and time.time() - self._last_send > self.config.command_timeout_s
-        )
 
     def close(self) -> None:
         return None

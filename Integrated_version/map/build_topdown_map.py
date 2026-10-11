@@ -7,8 +7,15 @@ import argparse
 import json
 import math
 import struct
+import sys
 from pathlib import Path
 from typing import BinaryIO, Iterable, Iterator
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.map.pgm_io import write_pgm
 
 
 PLY_TYPES = {
@@ -198,50 +205,6 @@ def make_density_map(
     return bytes(pixels), metadata
 
 
-def scan_bounds_and_floor(
-    ply_path: Path,
-    up_axis: str,
-    padding_m: float,
-    floor_side: str,
-    max_points: int | None,
-    max_floor_samples: int,
-) -> tuple[dict[str, float | int | str], float, int]:
-    min_u = min_v = math.inf
-    max_u = max_v = -math.inf
-    height_samples: list[float] = []
-    sample_step = 1
-    count = 0
-
-    for count, point in enumerate(iter_vertices(ply_path, max_points), start=1):
-        u, v, h = select_plane_values(point, up_axis)
-        min_u = min(min_u, u)
-        max_u = max(max_u, u)
-        min_v = min(min_v, v)
-        max_v = max(max_v, v)
-        if len(height_samples) < max_floor_samples:
-            height_samples.append(h)
-        elif count % sample_step == 0:
-            height_samples[count // sample_step % max_floor_samples] = h
-        if count == max_floor_samples:
-            sample_step = max(1, count // max_floor_samples)
-
-    if count == 0:
-        raise ValueError("No vertices were read from the PLY file.")
-
-    floor_fraction = 0.05 if floor_side == "lower" else 0.95
-    floor_level = percentile(height_samples, floor_fraction)
-    metadata = make_grid_metadata(
-        min_u - padding_m,
-        max_u + padding_m,
-        min_v - padding_m,
-        max_v + padding_m,
-        up_axis,
-        float(metadata_resolution_placeholder := 1.0),
-    )
-    metadata["meters_per_pixel"] = metadata_resolution_placeholder
-    return metadata, floor_level, count
-
-
 def dilate_occupied(occupied: list[bool], width: int, height: int, radius: int) -> list[bool]:
     if radius <= 0:
         return occupied
@@ -370,10 +333,6 @@ def make_occupancy_map(
         "pgm_values": "0=occupied, 205=unknown, 254=free floor",
     })
     return bytes(pixels), metadata
-
-
-def write_pgm(path: Path, width: int, height: int, pixels: bytes) -> None:
-    path.write_bytes(f"P5\n{width} {height}\n255\n".encode("ascii") + pixels)
 
 
 def write_preview_png(pgm_path: Path, output_path: Path, scale: int) -> None:

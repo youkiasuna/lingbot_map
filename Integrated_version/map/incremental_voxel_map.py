@@ -11,23 +11,14 @@ from pathlib import Path
 
 import numpy as np
 
+from Integrated_version.map.pgm_io import write_pgm
+from Integrated_version.map.geometry import axis_indices, dilate
+
 FREE = 254
 UNKNOWN = 205
 OCCUPIED = 0
 
 PLY_ROW = struct.Struct("<fffBBBf")
-
-
-def write_pgm(path: Path, width: int, height: int, pixels: bytes) -> None:
-    path.write_bytes(f"P5\n{width} {height}\n255\n".encode("ascii") + pixels)
-
-
-def axis_indices(vertical_axis: str) -> tuple[int, float, list[int]]:
-    axis = vertical_axis[-1]
-    axis_index = "xyz".index(axis)
-    sign = -1.0 if vertical_axis.startswith("-") else 1.0
-    horizontal = [index for index in range(3) if index != axis_index]
-    return axis_index, sign, horizontal
 
 
 def estimate_floor_height(
@@ -81,26 +72,6 @@ def remove_small_components(mask: np.ndarray, min_cells: int) -> tuple[np.ndarra
                 for x, y in cells:
                     result[y, x] = False
     return result, component_count, removed_cells
-
-
-def dilate(mask: np.ndarray, radius: int) -> np.ndarray:
-    if radius <= 0:
-        return mask.copy()
-    height, width = mask.shape
-    result = mask.copy()
-    offsets = [
-        (dx, dy)
-        for dy in range(-radius, radius + 1)
-        for dx in range(-radius, radius + 1)
-        if dx * dx + dy * dy <= radius * radius
-    ]
-    ys, xs = np.nonzero(mask)
-    for x, y in zip(xs, ys):
-        for dx, dy in offsets:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < width and 0 <= ny < height:
-                result[ny, nx] = True
-    return result
 
 
 def component_stats(free: np.ndarray) -> dict[str, int]:

@@ -13,12 +13,12 @@ from typing import Any
 import numpy as np
 
 
-INTEGRATED_ROOT = Path(__file__).resolve().parents[1]
-if str(INTEGRATED_ROOT) not in sys.path:
-    sys.path.insert(0, str(INTEGRATED_ROOT))
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from experiments.orb_keyframe_localizer import OrbKeyframeLocalizer, result_to_pose  # noqa: E402
-from localization.localizer_interface import FilePosePublisher  # noqa: E402
+from Integrated_version.localization.orb_keyframe_localizer import OrbKeyframeLocalizer, result_to_pose  # noqa: E402
+from Integrated_version.localization.localizer_interface import FilePosePublisher  # noqa: E402
 
 
 def load_archive(mapping_dir: Path) -> dict[str, np.ndarray]:

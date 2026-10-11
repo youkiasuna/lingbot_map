@@ -7,10 +7,10 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
-from runtime.frame_queue import FramePacket
+from Integrated_version.runtime.frame_queue import FramePacket
 
 if TYPE_CHECKING:
-    from runtime.lingbot_map_session import LingBotMapSession
+    from Integrated_version.runtime.lingbot_map_session import LingBotMapSession
 
 
 @dataclass(frozen=True)

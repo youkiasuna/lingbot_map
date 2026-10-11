@@ -16,8 +16,15 @@ import math
 import random
 import re
 import struct
+import sys
 from pathlib import Path
 from typing import BinaryIO
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Integrated_version.map.geometry import cross, normalize
 
 PLY_TYPES = {
     "char": "b", "int8": "b", "uchar": "B", "uint8": "B",
@@ -91,21 +98,6 @@ def read_sample(ply_path: Path, max_points: int) -> tuple[list[tuple[float, floa
 def percentile(values: list[float], fraction: float) -> float:
     ordered = sorted(values)
     return ordered[min(len(ordered) - 1, round((len(ordered) - 1) * fraction))]
-
-
-def cross(a: tuple[float, float, float], b: tuple[float, float, float]) -> tuple[float, float, float]:
-    return (
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    )
-
-
-def normalize(vector: tuple[float, float, float]) -> tuple[float, float, float]:
-    length = math.sqrt(sum(value * value for value in vector))
-    if length < 1e-9:
-        raise ValueError("Cannot normalize a zero-length vector.")
-    return tuple(value / length for value in vector)
 
 
 def plane_from_points(a, b, c):
